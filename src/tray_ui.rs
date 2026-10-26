@@ -7,20 +7,20 @@ use windows::{
         Foundation::{HWND, RECT, *},
         Graphics::{
             Dwm::*,
-            Gdi::{CreatePen, Ellipse, HDC, PS_SOLID, *},
+            Gdi::{HDC, *},
         },
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Input::KeyboardAndMouse::SetFocus,
             WindowsAndMessaging::{
-                FindWindowW, GetWindowRect, IsWindowVisible, SetWindowPos, SWP_NOACTIVATE,
-                SWP_NOZORDER, *,
+                FindWindowW,
+                *,
             },
         },
     },
 };
 
-use crate::log_error;
+use crate::{log_error};
 
 const CLASS_NAME: PCWSTR = w!("AgentTrayPopup");
 const WINDOW_TITLE: PCWSTR = w!("Родительский контроль");
@@ -457,7 +457,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 
 fn draw_text(hdc: HDC, text: &str, x: i32, y: i32) {
     unsafe {
-        let mut wide = to_wide(text);
+        let wide = to_wide(text);
         let _ = TextOutW(hdc, x, y, &wide);
     }
 }
@@ -495,31 +495,4 @@ fn color_for_percent(used: u32, limit: u32) -> COLORREF {
     }
 }
 
-/// Цвет для кружка общего состояния системы.
-fn color_for_state(mode: &str, is_locked: bool) -> COLORREF {
-    if mode == "control_disabled" || mode == "no_user" {
-        COLORREF(0x009ca3af) // серый
-    } else if is_locked {
-        COLORREF(0x004444ef) // красный — заблокировано
-    } else if mode == "manual_lock" || mode == "manual_unlock" {
-        COLORREF(0x0008b9ea) // жёлтый — временный доступ
-    } else {
-        COLORREF(0x005ec522) // зелёный — активно
-    }
-}
 
-/// Рисует цветной кружок радиуса `radius` с центром в (`cx`, `cy`).
-unsafe fn draw_dot(hdc: HDC, cx: i32, cy: i32, radius: i32, color: COLORREF) {
-    let brush = CreateSolidBrush(color);
-    let pen = CreatePen(PS_SOLID, 1, color);
-
-    let old_brush = SelectObject(hdc, brush.into());
-    let old_pen = SelectObject(hdc, pen.into());
-
-    Ellipse(hdc, cx - radius, cy - radius, cx + radius, cy + radius);
-
-    SelectObject(hdc, old_brush);
-    SelectObject(hdc, old_pen);
-    let _ = DeleteObject(brush.into());
-    let _ = DeleteObject(pen.into());
-}

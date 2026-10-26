@@ -1,6 +1,6 @@
 // src/db.rs
 use std::{
-    path::{Path, PathBuf},
+    path::{Path},
     sync::Mutex,
 };
 
@@ -9,7 +9,6 @@ use rusqlite::{params, Connection, Result};
 
 use crate::{
     config::Config,
-    log_info,
     types::{DaySchedule, SettingItem, TodayLimit},
 };
 

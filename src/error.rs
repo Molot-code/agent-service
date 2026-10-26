@@ -27,7 +27,7 @@ pub enum AppError {
     Internal(String),
 }
 
-use crate::{log_debug, log_error, log_info, log_warn};
+use crate::{log_error, log_info, log_warn};
 pub type AppResult<T> = Result<T, AppError>;
 
 impl IntoResponse for AppError {

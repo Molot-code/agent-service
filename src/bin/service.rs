@@ -37,9 +37,9 @@ use agent_windows::{
     discovery::start_discovery_listener,
     logger::{init_global_logger, LogLevel},
     mode::get_current_mode,
-    policy::{check_screen_time_policy, evaluate_access, is_access_allowed, PolicyCheckResult},
+    policy::{evaluate_access, PolicyCheckResult},
     types::ControlMode,
-    users, AdminCommand, ManualAction, SessionState,
+    users, AdminCommand, SessionState,
 };
 // ==========================================
 // 2. ТОЧКИ ВХОДА WINDOWS SERVICE
@@ -638,6 +638,22 @@ async fn apply_lock_state(
     } else {
         is_locked
     };
+
+    if let ControlMode::Manual {
+        until: _,
+        action: _,
+    } = policy.mode
+    {
+        // Всегда разблокировать интернет при переходе в ручной режим
+        if let Some(sid) = get_active_user_sid() {
+            if let Err(e) = agent_windows::firewall::set_block_enabled(&sid, false) {
+                log_error!("[apply_lock_state] Failed to unblock internet: {}", e);
+            }
+            let _ = db.set_internet_paused(&sid, false, "manual");
+        }
+
+        return Ok(screen_locked);
+    }
 
     // ===== Блокировка интернета по лимиту =====
     let is_internet_paused = db.is_internet_paused(sid).unwrap_or(false);

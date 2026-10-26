@@ -1,15 +1,14 @@
 // src/scheduler.rs
 use windows::{
-    core::{Interface, BSTR, GUID},
+    core::{Interface, BSTR},
     Win32::System::{
         Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
             COINIT_APARTMENTTHREADED,
         },
         TaskScheduler::{
-            IExecAction, IRegisteredTask, ITaskDefinition, ITaskFolder, ITaskService, ITimeTrigger,
-            TASK_ACTION_EXEC, TASK_CREATE_OR_UPDATE, TASK_LOGON_SERVICE_ACCOUNT,
-            TASK_RUNLEVEL_HIGHEST, TASK_TRIGGER_TIME,
+            IRegisteredTask, ITaskDefinition, ITaskFolder, ITaskService, TASK_CREATE_OR_UPDATE, TASK_LOGON_SERVICE_ACCOUNT,
+            TASK_RUNLEVEL_HIGHEST,
         },
         Variant::VARIANT,
     },
@@ -20,7 +19,7 @@ use windows::{
 const CLSID_TASK_SERVICE: windows::core::GUID =
     windows::core::GUID::from_u128(0x0f87369f_a4e5_4cfc_bd3e_73e6154572dd);
 
-use crate::{config::Config, log_error, log_info, log_warn};
+use crate::{log_error, log_info};
 
 const TASK_NAME: &str = "ParentalControl_Watchdog";
 const TASK_FOLDER: &str = "\\";

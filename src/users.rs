@@ -172,7 +172,7 @@ pub fn initialize_users(db: &AppDb) {
     );
 }
 
-pub fn sync_users(db: &AppDb, log_fn: &dyn Fn(&str)) {
+pub fn sync_users(db: &AppDb, _log_fn: &dyn Fn(&str)) {
     let local_users = get_local_users_with_sids(); // ← исправлено имя функции
 
     let active_sids: Vec<String> = local_users.iter().map(|(_, sid)| sid.clone()).collect();

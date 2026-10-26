@@ -1,5 +1,5 @@
 // src/api.rs
-use std::{env, fs::OpenOptions, io::Write, path::Path, sync::Arc};
+use std::{env, path::Path, sync::Arc};
 
 use axum::{
     extract::{Path as AxumPath, Query, State},
@@ -8,7 +8,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use minijinja::{context, Environment};
+use minijinja::context;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -19,7 +19,6 @@ use crate::{
     db::AppDb,
     error::{AppError, AppResult},
     firewall, log_debug, log_error, log_info, log_warn,
-    logger::LogLevel,
     policy::do_sync_user_access,
     types::{ControlMode, DaySchedule, ManualAction, TimeToEvent},
     users::get_active_user_sid,

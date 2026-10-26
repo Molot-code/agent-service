@@ -1,9 +1,7 @@
 // src/bin/cli.rs
 use std::{thread, time::Duration};
 
-use agent_windows::{
-    config::Config, db::AppDb, log_debug, log_error, log_info, log_warn, native_lock,
-};
+use agent_windows::{config::Config, db::AppDb, log_debug, log_error, log_warn, native_lock};
 
 fn main() {
     // CLI запускается из службы в сессии пользователя.

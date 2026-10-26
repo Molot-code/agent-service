@@ -55,12 +55,6 @@ fn default_tray_interval() -> u64 {
     5
 }
 
-fn default_tick_duration() -> u64 {
-    1
-}
-fn default_static_dir() -> String {
-    "static".to_string()
-}
 fn default_display_name() -> String {
     "Parental Control Service".to_string()
 }

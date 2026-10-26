@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     db::AppDb,
-    log_debug, log_error, log_info, log_warn,
+    log_debug, log_error, log_info,
     types::{AdminCommand, ControlMode, DaySchedule, ManualAction, TimeToEvent, TodayLimit},
     users::get_active_user_sid,
 };
@@ -254,7 +254,7 @@ fn calculate_time_to_event(
 
                 let (m, reason) = match (minutes_to_limit, minutes_to_end) {
                     (Some(a), Some(b)) if a <= b => (a, "limit"), // 🆕 лимит раньше
-                    (Some(a), Some(b)) => (b, "schedule"),        // 🆕 окно раньше
+                    (Some(_a), Some(b)) => (b, "schedule"),        // 🆕 окно раньше
                     (Some(a), None) => (a, "limit"),
                     (None, Some(b)) => (b, "schedule"),
                     (None, None) => (0, ""),
@@ -364,12 +364,7 @@ fn chrono_weekday_to_db(weekday: chrono::Weekday) -> u32 {
     (weekday.num_days_from_monday() + 1) % 7
 }
 
-/// Минут до конца текущих суток.
-fn minutes_until_next_midnight(now: DateTime<Local>) -> u32 {
-    let tomorrow = (now + chrono::Duration::days(1)).date_naive();
-    let midnight = tomorrow.and_hms_opt(0, 0, 0).unwrap();
-    (midnight - now.naive_local()).num_minutes().max(0) as u32
-}
+
 
 /// Минут до `end_time` **сегодня**. `None`, если окно уже закрыто.
 fn minutes_until_end_time(end_time: &str, now: DateTime<Local>) -> Option<u32> {

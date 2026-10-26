@@ -44,8 +44,10 @@ struct Status {
 
 #[derive(Debug, Clone)]
 struct TimeToEvent {
+    #[allow(dead_code)]
     kind: String,
     minutes: u32,
+    #[allow(dead_code)]
     reason: String,
 }
 
