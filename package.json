@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "prettier": "^3.9.9",
+    "prettier-plugin-jinja-template": "^2.2.0",
+    "tailwindcss": "^4.3.3"
+  }
+}

@@ -1,0 +1,37 @@
+{% macro header() %}
+<div class="relative mb-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-lg sm:text-xl md:text-2xl font-bold">🛡️ Родительский контроль</h1>
+
+        <div class="hidden md:flex items-center gap-4">
+            <button @click="switchServer()"
+                class="text-sm text-blue-600 hover:text-blue-800">🔄 Сменить сервер</button>
+            <button @click="logout" class="text-sm text-red-600 hover:text-red-800">Выйти</button>
+        </div>
+
+        <button class="md:hidden p-2 text-2xl" @click="menuOpen = !menuOpen">☰</button>
+    </div>
+
+    <div x-show="menuOpen" x-transition @click.outside="menuOpen = false"
+        class="md:hidden absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border z-50">
+        <button @click="switchServer()"
+            class="block w-full text-left px-4 py-3 border-b hover:bg-gray-50 rounded-t-lg">
+            🔄 Сменить сервер
+        </button>
+        <button @click="logout"
+            class="block w-full text-left px-4 py-3 text-red-600 hover:bg-gray-50 rounded-b-lg">
+            🚪 Выйти
+        </button>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro tab_button(tab_id, label, icon) %}
+<button @click="switchTab('{{ tab_id }}')"
+    :class="tab === '{{ tab_id }}'
+        ? 'bg-white text-blue-600 border-b-2 border-blue-600 font-semibold'
+        : 'text-gray-500 hover:text-gray-700'"
+    class="flex-1 px-3 py-3 text-sm sm:text-base transition-colors">
+    <span class="hidden sm:inline">{{ icon }} </span>{{ label }}
+</button>
+{% endmacro %}

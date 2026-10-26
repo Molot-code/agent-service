@@ -1,0 +1,7 @@
+{% macro tab_button(tab_id, label, icon) %}
+<button @click="switchTab('{{ tab_id }}')"
+    :class="tab === '{{ tab_id }}' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-600 hover:bg-gray-50'"
+    class="flex-1 px-2 sm:px-4 py-3 border-b-2 font-medium text-sm transition">
+    {{ icon }} <span class="hidden sm:inline">{{ label }}</span>
+</button>
+{% endmacro %}

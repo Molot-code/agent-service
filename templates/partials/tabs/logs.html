@@ -1,0 +1,25 @@
+{% macro logs() %}
+<div x-show="tab === 'logs'" class="space-y-4" x-transition>
+    <div class="flex gap-2 flex-wrap">
+        <select x-model="logsDate" @change="loadLogs()" class="...">
+            <template x-for="d in logsDates" :key="d">
+                <option :value="d" x-text="d"></option>
+            </template>
+        </select>
+        <select x-model="logsSource" @change="loadLogs()" class="...">
+            <option value="service">Служба</option>
+            <option value="agent_cli">CLI</option>
+            <option value="agent_tray">Трей</option>
+        </select>
+        <select x-model="logsLevel" @change="loadLogs()" class="...">
+            <option value="info">Info+</option>
+            <option value="warn">Warn+</option>
+            <option value="error">Error</option>
+            <option value="debug">Debug (всё)</option>
+        </select>
+        <button @click="loadLogs()">Обновить</button>
+    </div>
+    <pre class="bg-gray-900 text-green-400 text-xs p-4 rounded overflow-auto max-h-[60vh]"
+        x-text="logsContent"></pre>
+</div>
+{% endmacro %}

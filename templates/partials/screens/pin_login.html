@@ -1,0 +1,16 @@
+{% macro pin_login() %}
+<div x-show="pinSet && !authenticated" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-4 sm:p-6 md:p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-lg sm:text-xl md:text-2xl font-bold mb-6 text-center">🛡️ Родительский контроль</h1>
+
+        <input type="password" x-model="pin" @keydown.enter="login"
+            class="pin-input w-full p-3 border-2 rounded mb-4 focus:border-blue-500 outline-none"
+            placeholder="Введите PIN" maxlength="6" inputmode="numeric">
+
+        <button @click="login" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium">
+            Войти
+        </button>
+        <p x-show="error" class="text-red-500 mt-4 text-center text-sm" x-text="error"></p>
+    </div>
+</div>
+{% endmacro %}

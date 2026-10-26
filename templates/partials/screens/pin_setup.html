@@ -1,0 +1,21 @@
+{% macro pin_setup() %}
+<div x-show="!pinSet && !authenticated" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white p-4 sm:p-6 md:p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-lg sm:text-xl md:text-2xl font-bold mb-2 text-center">🔐 Первый запуск</h1>
+        <p class="text-gray-600 mb-6 text-center text-sm">Придумайте PIN-код для доступа к панели управления</p>
+
+        <input type="password" x-model="newPin" @keydown.enter="setupPin"
+            class="pin-input w-full p-3 border-2 border-blue-300 rounded mb-2 focus:border-blue-500 outline-none"
+            placeholder="••••" maxlength="6" inputmode="numeric">
+
+        <input type="password" x-model="confirmPin" @keydown.enter="setupPin"
+            class="pin-input w-full p-3 border-2 border-blue-300 rounded mb-4 focus:border-blue-500 outline-none"
+            placeholder="Повторите PIN" maxlength="6" inputmode="numeric">
+
+        <button @click="setupPin" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium">
+            Установить PIN
+        </button>
+        <p x-show="error" class="text-red-500 mt-4 text-center text-sm" x-text="error"></p>
+    </div>
+</div>
+{% endmacro %}

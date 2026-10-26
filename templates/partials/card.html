@@ -1,0 +1,46 @@
+{# templates/partials/card.html #}
+
+{#
+    Макрос для карточки.
+
+    Параметры:
+      - title: string — заголовок (может быть пустым, тогда заголовка нет)
+      - border: string — tailwind-класс цвета левой полоски, например 'border-l-green-500'
+                        по умолчанию 'border-l-gray-300'
+      - dynamic_border: string — Alpine-выражение для :class (для динамического цвета).
+                                 Если задано, border игнорируется.
+      - padding: string — отступы карточки
+
+    Использование (статика):
+        {% call card::render("📊 Заголовок", "border-l-green-500") %}
+            ... содержимое ...
+        {% endcall %}
+
+    Использование (динамика):
+        {% call card::render_dynamic("📊 Заголовок", "{
+            'border-green-500': global.is_active,
+            'border-red-500': global.is_locked
+        }") %}
+            ... содержимое ...
+        {% endcall %}
+#}
+
+{% macro render(title='', border='border-l-gray-300', padding='p-3 sm:p-4 md:p-6') %}
+<div class="bg-white {{ padding }} rounded-lg shadow border-l-4 {{ border }}">
+    {% if title %}
+        <h2 class="text-base sm:text-lg font-semibold mb-4">{{ title }}</h2>
+    {% endif %}
+    {{ caller() }}
+</div>
+{% endmacro %}
+
+
+{% macro render_dynamic(title='', dynamic_class='', padding='p-3 sm:p-4 md:p-6') %}
+<div class="bg-white {{ padding }} rounded-lg shadow border-l-4"
+     :class="{{ dynamic_class }}">
+    {% if title %}
+        <h2 class="text-base sm:text-lg font-semibold mb-4">{{ title }}</h2>
+    {% endif %}
+    {{ caller() }}
+</div>
+{% endmacro %}

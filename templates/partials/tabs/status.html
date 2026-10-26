@@ -1,0 +1,190 @@
+{% import "partials/progress_block.html" as progress %}
+{% import "partials/extra_slider.html" as extra_slider %}
+
+{% macro status() %}
+<div x-show="tab === 'status'" class="space-y-4" x-transition>
+
+    {# ===== Карточка состояния системы ===== #}
+    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4"
+        :class="{
+            'border-green-500': global.mode === 'scheduled' && !global.is_locked,
+            'border-red-500': global.is_locked,
+            'border-yellow-500': global.mode === 'manual' && !global.is_locked,
+            'border-gray-400': global.mode === 'control_disabled' || global.current_user === 'Нет активных сессий'
+        }">
+        <h2 class="text-base sm:text-lg md:text-xl font-bold mb-4">📊 Текущее состояние системы</h2>
+
+        <template x-if="global.current_user === 'Нет активных сессий' || !global.current_user">
+            <div class="text-center py-8 text-gray-500">
+                <div style="font-size: 64px; margin-bottom: 12px;">👤</div>
+                <p class="text-lg font-medium">Нет активных сессий Windows</p>
+                <p class="text-sm mt-1">Система не отображает сессии RDP</p>
+            </div>
+        </template>
+
+        <template x-if="global.current_user && global.current_user !== 'Нет активных сессий'">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-500 block text-xs uppercase">Активный пользователь</span>
+                    <a href="#" @click.prevent="goToUsersTab()"
+                        class="group inline-flex items-center gap-2 font-bold text-lg sm:text-xl md:text-2xl text-gray-800 transition-colors hover:text-blue-600 hover:underline cursor-pointer">
+                        <span x-text="global.current_user"></span>
+                        <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                    </a>
+                </div>
+
+                <div>
+                    <span class="text-gray-500 block text-xs uppercase">Режим работы</span>
+                    <div class="font-bold text-lg"
+                        :class="modeColor()"
+                        x-text="modeLabel()"></div>
+                </div>
+
+                <div>
+                    <span class="text-gray-500 block text-xs uppercase">Состояние</span>
+                    <div class="font-bold text-lg"
+                        :class="global.mode === 'control_disabled' ? 'text-green-600' : (global.is_locked ? 'text-red-600' : (global.mode === 'manual' ? 'text-yellow-600' : 'text-green-600'))"
+                        x-text="global.mode === 'control_disabled' ? 'АКТИВНО' : (global.is_locked ? 'ЗАБЛОКИРОВАНО' : (global.mode === 'manual' ? 'Временный доступ' : 'АКТИВНО'))"></div>
+                </div>
+
+                <div>
+                    <span class="text-gray-500 block text-xs uppercase">Сессия Windows</span>
+                    <div class="font-medium" x-text="global.session_locked ? '🔒 Заблокирована' : '🟢 Активна'"></div>
+                </div>
+
+                <div x-show="global.time_to_event"
+                    class="col-span-1 md:col-span-2 bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+                    <div class="text-gray-700 font-medium"
+                        x-text="eventTitle()"></div>
+                    <div class="font-bold text-yellow-700 text-lg mt-1"
+                        x-text="'Через ' + formatTimeUntil(global.time_to_event?.minutes ?? 0)"></div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    {# ===== Панель управления ===== #}
+    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-purple-500"
+        x-show="(global.mode !== 'control_disabled') && (global.current_user && global.current_user !== 'Нет активных сессий')">
+        <h2 class="text-base sm:text-lg font-semibold mb-4">🎛️ Управление</h2>
+
+        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-6">
+            {# 🔒 Заблокировать #}
+            <div x-show="!global.is_locked" class="relative flex-1">
+                <button type="button"
+                        @click="showLockMenu = !showLockMenu"
+                        class="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
+                    <span>🔒</span>
+                    <span>Заблокировать на...</span>
+                    <svg class="w-4 h-4 transition-transform"
+                        :class="showLockMenu ? 'rotate-180' : ''"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                <div x-show="showLockMenu"
+                    x-transition
+                    x-cloak
+                    @click.outside="showLockMenu = false"
+                    class="absolute z-20 mt-1 left-0 right-0 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+                    <button type="button" @click="lockUntilEndOfDay()"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>🌙</span><span>До конца дня</span>
+                    </button>
+                    <div class="border-t border-gray-100"></div>
+                    <button type="button" @click="lockForMinutes(5)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 5 минут</span>
+                    </button>
+                    <button type="button" @click="lockForMinutes(10)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 10 минут</span>
+                    </button>
+                    <button type="button" @click="lockForMinutes(15)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 15 минут</span>
+                    </button>
+                    <button type="button" @click="lockForMinutes(30)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 30 минут</span>
+                    </button>
+                    <button type="button" @click="lockForMinutes(60)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-red-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 60 минут</span>
+                    </button>
+                </div>
+            </div>
+
+            {# 🟡 Разблокировать #}
+            <div x-show="global.is_locked" class="relative flex-1">
+                <button type="button"
+                        @click="showLockMenu = !showLockMenu"
+                        class="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
+                    <span>🟡</span>
+                    <span>Разблокировать на...</span>
+                    <svg class="w-4 h-4 transition-transform"
+                        :class="showLockMenu ? 'rotate-180' : ''"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                <div x-show="showLockMenu"
+                    x-transition
+                    x-cloak
+                    @click.outside="showLockMenu = false"
+                    class="absolute z-20 mt-1 left-0 right-0 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+                    <button type="button" @click="unlockUntilEndOfDay()"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>🌙</span><span>До конца дня</span>
+                    </button>
+                    <div class="border-t border-gray-100"></div>
+                    <button type="button" @click="unlockForMinutes(5)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 5 минут</span>
+                    </button>
+                    <button type="button" @click="unlockForMinutes(10)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 10 минут</span>
+                    </button>
+                    <button type="button" @click="unlockForMinutes(15)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 15 минут</span>
+                    </button>
+                    <button type="button" @click="unlockForMinutes(30)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 30 минут</span>
+                    </button>
+                    <button type="button" @click="unlockForMinutes(60)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-yellow-50 text-sm flex items-center gap-3">
+                        <span>⏱</span><span>На 60 минут</span>
+                    </button>
+                </div>
+            </div>
+
+            <button x-show="global.mode === 'manual_lock' || global.mode === 'manual_unlock'"
+                    @click="manualAction('auto', '')"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition transform active:scale-95 text-sm sm:text-base">
+                Вернуться в режим расписания
+            </button>
+        </div>
+
+        {# Прогресс-бары #}
+        <div class="space-y-4 mb-6">
+            {{ progress.progress_block("blue", "Экранное время", "screen_time", "extra_min", "screen") }}
+            {{ progress.progress_block("green", "Интернет", "internet_time", "internet_extra_min", "internet") }}
+        </div>
+
+        {# Слайдеры поправки #}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {{ extra_slider.extra_slider("screen", "Экранное время", "🖥️") }}
+            {{ extra_slider.extra_slider("internet", "Интернет", "🌐") }}
+        </div>
+    </div>
+</div>
+{% endmacro %}

@@ -1,0 +1,17 @@
+{% macro progress_block(color, label, time_field, extra_field, limit_key) %}
+<div class="{% if color == "blue" %}bg-blue-50{% elif color == "green" %}bg-green-50{% endif %} p-3 rounded">
+    <div class="flex justify-between items-baseline mb-2">
+        <div class="text-xs text-gray-600">{{ label }}</div>
+        <div class="text-xs font-bold {% if color == "blue" %}text-blue-700{% elif color == "green" %}text-green-700{% endif %}">
+            <span x-text="formatMinutes(activeToday.{{ time_field }})"></span>
+            <span class="{% if color == "blue" %}text-blue-400{% elif color == "green" %}text-green-400{% endif %} font-normal"> / </span>
+            <span x-text="formatMinutes(effectiveLimitSec('{{ limit_key }}'))"></span>
+        </div>
+    </div>
+    <div class="w-full h-2 {% if color == "blue" %}bg-blue-200{% elif color == "green" %}bg-green-200{% endif %} rounded-full overflow-hidden">
+        <div class="h-full transition-all"
+            :class="progressColor(progressPercent(activeToday.{{ time_field }}, effectiveLimitSec('{{ limit_key }}')))"
+            :style="`width: ${progressPercent(activeToday.{{ time_field }}, effectiveLimitSec('{{ limit_key }}'))}%`"></div>
+    </div>
+</div>
+{% endmacro %}

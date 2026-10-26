@@ -1,0 +1,30 @@
+[service]
+name = "ParentalControlSvc"
+display_name = "Parental Control Service"
+api_port = 8765
+tick_duration_secs = 1
+log_level = "debug"
+
+[tray]
+# Хост и порт API берутся так: http://<host>:<service.api_port>
+host = "127.0.0.1"
+# Как часто трей запрашивает /api/status (секунды).
+# Меньше — свежее данные, больше — меньше нагрузки. Разумно 2–30.
+update_interval_sec = 5
+
+[paths]
+log_dir    = "C:\\ProgramData\\ParentalControl"
+static_dir = "static"
+agent_cli  = [
+    "C:\\Program Files\\ParentalControl\\agent-cli.exe",
+    "C:\\ProgramData\\ParentalControl\\agent-cli.exe",
+]
+agent_tray = [
+    "C:\\Program Files\\ParentalControl\\agent-tray.exe",
+    "C:\\ProgramData\\ParentalControl\\agent-tray.exe",
+]
+
+[limits]
+default_limit_sec  = 7200
+default_start_time = "08:00"
+default_end_time   = "20:00"

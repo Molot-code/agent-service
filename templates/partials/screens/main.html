@@ -1,0 +1,25 @@
+{% import "partials/header.html" as header %}
+{% import "partials/tabs/status.html" as tab_status %}
+{% import "partials/tabs/global.html" as tab_global %}
+{% import "partials/tabs/users.html" as tab_users %}
+{% import "partials/tabs/logs.html" as tab_logs %}
+
+{% macro main() %}
+<div x-show="authenticated" class="mx-auto p-2 sm:p-4 max-w-4xl pb-8 sm:pb-20">
+
+    {{ header.header() }}
+
+    {# Вкладки #}
+    <div class="flex mb-6 border-b bg-white rounded-t-lg overflow-hidden">
+        {{ header.tab_button("status", "Статус", "📊") }}
+        {{ header.tab_button("global", "Глобальные", "⚙️") }}
+        {{ header.tab_button("users", "Пользователи", "👥") }}
+        {{ header.tab_button("logs", "Логи", "📜") }}
+    </div>
+
+    {{ tab_status.status() }}
+    {{ tab_global.global_settings() }}
+    {{ tab_users.users() }}
+    {{ tab_logs.logs() }}
+</div>
+{% endmacro %}

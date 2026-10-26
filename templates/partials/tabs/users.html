@@ -1,0 +1,220 @@
+{# partials/tabs/users.html #}
+{% macro users() %}
+<div x-show="tab === 'users'" class="space-y-4" x-transition>
+
+    {# Карточка выбора пользователя #}
+    <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-blue-500">
+        <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-medium">👤 Пользователь:</label>
+
+            <div class="flex items-center gap-3">
+                <button @click="loadUserData()" :disabled="loadingUserData"
+                    class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 disabled:opacity-50"
+                    title="Обновить данные пользователя">
+                    <span x-show="!loadingUserData">🔄 Обновить</span>
+                    <span x-show="loadingUserData">⏳ Загрузка...</span>
+                </button>
+
+                <label class="inline-flex items-center cursor-pointer"
+                    x-show="selectedUser && users.find(u => u.sid === selectedUser)?.is_control_enabled">
+                    <input type="checkbox" class="sr-only peer"
+                        :checked="users.find(u => u.sid === selectedUser)?.is_control_enabled"
+                        @change="toggleControl(selectedUser, $event.target.checked)">
+                    <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <span class="ms-2 text-sm font-medium text-blue-600">Включен</span>
+                </label>
+            </div>
+        </div>
+
+        <select x-model="selectedUser" @change="loadUserData()" class="w-full p-3 border rounded">
+            <option value="" disabled>Выберите пользователя...</option>
+            <template x-for="user in users" :key="user.sid">
+                <option :value="user.sid" x-text="user.username"></option>
+            </template>
+        </select>
+
+        <div x-show="selectedUser && !users.find(u => u.sid === selectedUser)?.is_control_enabled" class="mt-4">
+            <button @click="enableControlForSelectedUser()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold shadow transition-all flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Включить контроль
+            </button>
+        </div>
+
+        <div x-show="selectedUser && !users.find(u => u.sid === selectedUser)?.is_control_enabled"
+            class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+            ⚠️ Контроль времени для этого пользователя <b>отключен</b>.
+        </div>
+    </div>
+
+    {# Блоки настроек #}
+    <template x-if="selectedUser && users.find(u => u.sid === selectedUser)?.is_control_enabled">
+        <div class="space-y-4">
+
+            {# ===== Блок «Сегодня» ===== #}
+            <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-green-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base sm:text-lg md:text-xl font-bold text-gray-800">
+                        📅 Сегодня (переопределение)
+                    </h2>
+                    <span x-show="savingToday" class="text-xs text-gray-400">⏳ Сохранение…</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div class="bg-blue-50 p-3 rounded">
+                        <div class="text-xs text-gray-600">Экранное время</div>
+                        <div class="font-bold text-blue-700">
+                            <span x-text="formatMinutes(today.screen_time)"></span>
+                            <span class="text-blue-400 font-normal"> / </span>
+                            <span x-text="formatMinutes((today.limit_min + today.extra_min) * 60)"></span>
+                        </div>
+                    </div>
+                    <div class="bg-green-50 p-3 rounded">
+                        <div class="text-xs text-gray-600">Интернет</div>
+                        <div class="font-bold text-green-700">
+                            <span x-text="formatMinutes(today.internet_time)"></span>
+                            <span class="text-green-400 font-normal"> / </span>
+                            <span x-text="formatMinutes((today.internet_limit_min + today.internet_extra_min) * 60)"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Начало (С:)</label>
+                        <input type="time" x-model="today.start_time"
+                            @change="saveToday()"
+                            class="w-full p-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Конец (До:)</label>
+                        <input type="time" x-model="today.end_time"
+                            @change="saveToday()"
+                            class="w-full p-2 border rounded">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Лимит экрана (мин)</label>
+                        <input type="number" x-model.number="today.limit_min" min="0" max="1440"
+                            @change="clampInternetLimit(); saveToday()"
+                            class="w-full p-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Лимит интернета (мин)</label>
+                        <input type="number" x-model.number="today.internet_limit_min" min="0"
+                            :max="today.limit_min"
+                            @change="clampInternetLimit(); saveToday()"
+                            class="w-full p-2 border rounded">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Поправка экрана (мин)</label>
+                        <input type="number" x-model.number="today.extra_min" class="w-full p-2 border rounded"
+                            @change="saveToday()"
+                            placeholder="0">
+                        <p class="text-xs text-gray-400 mt-1">Отрицательное — урезать, положительное — добавить</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Поправка интернета (мин)</label>
+                        <input type="number" x-model.number="today.internet_extra_min"
+                            class="w-full p-2 border rounded"
+                            @change="saveToday()"
+                            placeholder="0">
+                    </div>
+                </div>
+            </div>
+
+            {# ===== Расписание на неделю ===== #}
+            <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-orange-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base sm:text-lg md:text-xl font-bold text-gray-800">
+                        📆 Расписание на неделю
+                    </h2>
+                    <span x-show="savingSchedule" class="text-xs text-gray-400">⏳ Сохранение…</span>
+                </div>
+
+                <label class="flex items-center gap-2 mb-4">
+                    <input type="checkbox" x-model="sameSchedule" @change="onSameScheduleToggle()" class="w-5 h-5">
+                    <span class="text-sm">🔁 Одинаковое расписание для всех дней</span>
+                </label>
+
+                <template x-if="sameSchedule">
+                    <div class="border-2 border-blue-300 rounded p-3 bg-blue-50">
+                        <div class="font-medium text-sm mb-2 text-blue-700">📅 Ежедневно</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <label class="text-gray-600">С:</label>
+                                <input type="time" x-model="dailySchedule.start_time"
+                                    @change="applyDailyToAll(); saveWeekSchedule()"
+                                    class="w-full p-1 border rounded">
+                            </div>
+                            <div>
+                                <label class="text-gray-600">До:</label>
+                                <input type="time" x-model="dailySchedule.end_time"
+                                    @change="applyDailyToAll(); saveWeekSchedule()"
+                                    class="w-full p-1 border rounded">
+                            </div>
+                            <div>
+                                <label class="text-gray-600">Экран (мин):</label>
+                                <input type="number" x-model.number="dailySchedule.limit_min" min="0" max="1440"
+                                    @change="clampDailyInternetLimit(); applyDailyToAll(); saveWeekSchedule()"
+                                    class="w-full p-1 border rounded">
+                            </div>
+                            <div>
+                                <label class="text-gray-600">Интернет (мин):</label>
+                                <input type="number" x-model.number="dailySchedule.internet_limit_min" min="0"
+                                    :max="dailySchedule.limit_min"
+                                    @change="clampDailyInternetLimit(); applyDailyToAll(); saveWeekSchedule()"
+                                    class="w-full p-1 border rounded">
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="space-y-3" x-show="!sameSchedule">
+                    <template x-for="(day, idx) in weekDays" :key="idx">
+                        <div class="border rounded p-3">
+                            <div class="font-medium text-sm mb-2" x-text="day.name"></div>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <label class="text-gray-600">С:</label>
+                                    <input type="time" x-model="day.start_time"
+                                        @change="saveWeekSchedule()"
+                                        class="w-full p-1 border rounded">
+                                </div>
+                                <div>
+                                    <label class="text-gray-600">До:</label>
+                                    <input type="time" x-model="day.end_time"
+                                        @change="saveWeekSchedule()"
+                                        class="w-full p-1 border rounded">
+                                </div>
+                                <div>
+                                    <label class="text-gray-600">Экран (мин):</label>
+                                    <input type="number" x-model.number="day.limit_min" min="0" max="1440"
+                                        @change="clampInternetLimitForDay(idx); saveWeekSchedule()"
+                                        class="w-full p-1 border rounded">
+                                </div>
+                                <div>
+                                    <label class="text-gray-600">Интернет (мин):</label>
+                                    <input type="number" x-model.number="day.internet_limit_min" min="0"
+                                        :max="day.limit_min"
+                                        @change="clampInternetLimitForDay(idx); saveWeekSchedule()"
+                                        class="w-full p-1 border rounded">
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+        </div>
+    </template>
+</div>
+{% endmacro %}
