@@ -475,8 +475,7 @@ document.addEventListener('alpine:init', () => {
                         if (key === 'screen') this.activeToday.extra_min += minutes;
                         if (key === 'internet') this.activeToday.internet_extra_min += minutes;
                     }
-                    await this.loadGlobal();
-                    this.syncExtraSnapshot();       // 🆕 подтянуть серверное состояние
+                    if (opts.silent) this.syncExtraSnapshot();
                 } else {
                     this.showStatus('❌ Ошибка сохранения');
                 }
