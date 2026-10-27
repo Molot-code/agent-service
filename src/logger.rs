@@ -146,9 +146,10 @@ impl Logger {
         }
 
         // 2. Основной файл бинарника: service.log / agent_cli.log / agent_tray.log
-        let main_path = self.today_dir().join(format!("{}.log", self.source));
-        Self::append(&main_path, &line);
-
+        if level != LogLevel::Debug {
+            let main_path = self.today_dir().join(format!("{}.log", self.source));
+            Self::append(&main_path, &line);
+        }
         // 3. error.log — дубликат всех Error
         if level == LogLevel::Error {
             let err_path = self.today_dir().join("error.log");
