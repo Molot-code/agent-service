@@ -179,3 +179,22 @@ pub struct WeekDayInfo {
     /// Индекс для фронтового массива `weekDays` (Пн=0..Вс=6).
     pub frontend_idx: usize,
 }
+
+#[derive(Serialize)]
+pub struct ActivityLogResponse {
+    pub entries: Vec<ActivityLogEntryDto>,
+}
+
+#[derive(Serialize)]
+pub struct ActivityLogEntryDto {
+    pub id: i64,
+    pub event_type: String,
+    pub details: String,
+    pub screen_time_sec: i32,
+    pub internet_time_sec: i32,
+    pub screen_limit_sec: i32,
+    pub internet_limit_sec: i32,
+    pub is_locked: bool,
+    pub internet_paused: bool,
+    pub created_at: String,
+}

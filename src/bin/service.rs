@@ -466,6 +466,15 @@ async fn handle_background_tick(
     if should_credit && tick_counter % 60 == 0 {
         process_screen_time_procedure(db, &sid).await;
     }
+
+    // Heartbeat каждые 5 минут (300 тиков)
+    if tick_counter % 300 == 0 {
+        let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
+        let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
+        let _ = db.log_activity(&sid, "heartbeat", "service_alive", screen_time,
+            internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+            locked_now, db.is_internet_paused(&sid).unwrap_or(false));
+    }
 }
 
 fn is_session_active(session_state_rx: &watch::Receiver<SessionState>) -> bool {
@@ -593,6 +602,11 @@ async fn enforce_lock_procedure(db: &Arc<AppDb>, sid: &str, reason: &str) -> boo
             log_info!("✅ Команда блокировки успешно отправлена в сессию пользователя");
             let _ = db.set_state("lock_status", "true");
             let _ = db.log_lock_event(sid, reason);
+            let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
+            let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
+            let _ = db.log_activity(sid, "screen_locked", reason, screen_time, internet_time,
+                today_limit.limit_sec, today_limit.internet_limit_sec, true,
+                db.is_internet_paused(sid).unwrap_or(false));
             true
         }
         Err(e) => {
@@ -609,6 +623,13 @@ async fn do_unlock_procedure(db: &Arc<AppDb>) {
     let _ = std::process::Command::new("taskkill")
         .args(&["/F", "/IM", "agent-cli.exe", "/T"])
         .output();
+    if let Some(sid) = get_active_user_sid() {
+        let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
+        let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
+        let _ = db.log_activity(&sid, "screen_unlocked", "", screen_time, internet_time,
+            today_limit.limit_sec, today_limit.internet_limit_sec, false,
+            db.is_internet_paused(&sid).unwrap_or(false));
+    }
 }
 
 /// Приводит lock_status в соответствие с политикой.
@@ -650,6 +671,11 @@ async fn apply_lock_state(
                 log_error!("[apply_lock_state] Failed to unblock internet: {}", e);
             }
             let _ = db.set_internet_paused(&sid, false, "manual");
+            let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
+            let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
+            let _ = db.log_activity(&sid, "internet_unblocked", "manual_mode", screen_time,
+                internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+                screen_locked, false);
         }
 
         return Ok(screen_locked);
@@ -672,6 +698,11 @@ async fn apply_lock_state(
                     let _ = db.set_internet_paused(sid, true, "limit");
                     let _ = db.set_state("internet_blocked", "true");
                     log_info!("✅ [Lock] Интернет заблокирован (по лимиту)");
+                    let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
+                    let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
+                    let _ = db.log_activity(sid, "internet_blocked", "limit_exceeded", screen_time,
+                        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+                        screen_locked, true);
                 }
                 Err(e) => log_error!("❌ [Lock] set_block_enabled(true): {}", e),
             },
@@ -706,6 +737,11 @@ async fn apply_lock_state(
                 Ok(_) => {
                     let _ = db.set_internet_paused(sid, true, "screen_lock");
                     let _ = db.set_state("internet_blocked", "true");
+                    let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
+                    let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
+                    let _ = db.log_activity(sid, "internet_blocked", "screen_lock", screen_time,
+                        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+                        true, true);
                 }
                 Err(e) => log_error!("❌ [Lock] screen_lock set_block_enabled(true): {}", e),
             },
@@ -718,6 +754,11 @@ async fn apply_lock_state(
         }
         let _ = db.set_internet_paused(sid, false, "");
         let _ = db.set_state("internet_blocked", "false");
+        let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
+        let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
+        let _ = db.log_activity(sid, "internet_unblocked", "screen_unlock", screen_time,
+            internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+            false, false);
     }
 
     Ok(screen_locked)

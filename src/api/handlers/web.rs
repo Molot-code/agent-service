@@ -19,8 +19,8 @@ use crate::{
 
 use super::super::{
     dto::{
-        LogQuery, StatusResponse, TimeToEventDto, TodayLimitRequest, TodayLimitResponse,
-        WeekScheduleRequest, WeekScheduleResponse,
+        ActivityLogResponse, LogQuery, StatusResponse, TimeToEventDto, TodayLimitRequest,
+        TodayLimitResponse, WeekScheduleRequest, WeekScheduleResponse,
     },
     util::device_name,
     AppState,
@@ -331,4 +331,27 @@ pub async fn set_param(
         success: true,
         message: format!("Параметр '{}' сохранён", payload.key),
     }))
+}
+
+pub async fn get_activity_log(
+    State(state): State<AppState>,
+    AxumPath(sid): AxumPath<String>,
+) -> AppResult<Json<ActivityLogResponse>> {
+    let entries = state.db.get_activity_log(&sid, 100)?;
+    let dtos: Vec<super::super::dto::ActivityLogEntryDto> = entries
+        .into_iter()
+        .map(|e| super::super::dto::ActivityLogEntryDto {
+            id: e.id,
+            event_type: e.event_type,
+            details: e.details,
+            screen_time_sec: e.screen_time_sec,
+            internet_time_sec: e.internet_time_sec,
+            screen_limit_sec: e.screen_limit_sec,
+            internet_limit_sec: e.internet_limit_sec,
+            is_locked: e.is_locked != 0,
+            internet_paused: e.internet_paused != 0,
+            created_at: e.created_at,
+        })
+        .collect();
+    Ok(Json(ActivityLogResponse { entries: dtos }))
 }

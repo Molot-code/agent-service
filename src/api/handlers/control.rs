@@ -33,6 +33,11 @@ pub async fn manual_action(
             .send(AdminCommand::AutoMode)
             .await
             .map_err(|e| AppError::Internal(format!("send cmd failed: {e}")))?;
+        let (screen_time, internet_time) = state.db.get_today_usage(&sid).unwrap_or((0, 0));
+        let today_limit = state.db.ensure_today_limit(&sid).unwrap_or_default();
+        let _ = state.db.log_activity(&sid, "mode_changed", "auto", screen_time,
+            internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+            false, false);
         return Ok(Json(ApiResponse {
             success: true,
             message: "🤖 Режим 'По расписанию'".to_string(),
@@ -57,6 +62,17 @@ pub async fn manual_action(
         .send(cmd)
         .await
         .map_err(|e| AppError::Internal(format!("send cmd failed: {e}")))?;
+    let (screen_time, internet_time) = state.db.get_today_usage(&sid).unwrap_or((0, 0));
+    let today_limit = state.db.ensure_today_limit(&sid).unwrap_or_default();
+    let event_type = match req.action {
+        ManualActionKind::Lock => "manual_lock",
+        ManualActionKind::Unlock => "manual_unlock",
+        ManualActionKind::Auto => "mode_changed",
+    };
+    let details = if manual_until.is_empty() { "".to_string() } else { format!("until: {}", manual_until) };
+    let _ = state.db.log_activity(&sid, event_type, &details, screen_time,
+        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+        matches!(req.action, ManualActionKind::Lock), false);
 
     let msg = if manual_until.is_empty() {
         action_str.to_string()
@@ -77,6 +93,12 @@ pub async fn extra_time(
     if let Err(e) = do_sync_user_access(&state.db, &state.admin_cmd_tx, &req.sid).await {
         log_error!("[extra_time] sync failed: {:?}", e);
     }
+    let (screen_time, internet_time) = state.db.get_today_usage(&req.sid).unwrap_or((0, 0));
+    let today_limit = state.db.ensure_today_limit(&req.sid).unwrap_or_default();
+    let details = format!("screen: {:?}m, internet: {:?}m", req.screen_minutes, req.internet_minutes);
+    let _ = state.db.log_activity(&req.sid, "extra_time", &details, screen_time,
+        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+        false, false);
     Ok(Json(extra_response(&req.sid, req.screen_minutes, req.internet_minutes)))
 }
 
@@ -91,6 +113,12 @@ pub async fn set_extra_time(
     if let Err(e) = do_sync_user_access(&state.db, &state.admin_cmd_tx, &req.sid).await {
         log_error!("[set_extra_time] sync failed: {:?}", e);
     }
+    let (screen_time, internet_time) = state.db.get_today_usage(&req.sid).unwrap_or((0, 0));
+    let today_limit = state.db.ensure_today_limit(&req.sid).unwrap_or_default();
+    let details = format!("screen: {:?}m, internet: {:?}m", req.screen_minutes, req.internet_minutes);
+    let _ = state.db.log_activity(&req.sid, "set_extra_time", &details, screen_time,
+        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+        false, false);
     Ok(Json(extra_response(&req.sid, req.screen_minutes, req.internet_minutes)))
 }
 
@@ -124,6 +152,11 @@ pub async fn pause_internet(State(state): State<AppState>) -> AppResult<Json<Api
         return Err(AppError::BadRequest("no active user".into()));
     };
     set_internet_blocked(&state.db, &sid, true, "manual")?;
+    let (screen_time, internet_time) = state.db.get_today_usage(&sid).unwrap_or((0, 0));
+    let today_limit = state.db.ensure_today_limit(&sid).unwrap_or_default();
+    let _ = state.db.log_activity(&sid, "internet_blocked", "manual", screen_time,
+        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+        false, true);
     Ok(Json(ApiResponse {
         success: true,
         message: "🌐 Интернет на паузе".to_string(),
@@ -135,6 +168,11 @@ pub async fn resume_internet(State(state): State<AppState>) -> AppResult<Json<Ap
         return Err(AppError::BadRequest("no active user".into()));
     };
     set_internet_blocked(&state.db, &sid, false, "")?;
+    let (screen_time, internet_time) = state.db.get_today_usage(&sid).unwrap_or((0, 0));
+    let today_limit = state.db.ensure_today_limit(&sid).unwrap_or_default();
+    let _ = state.db.log_activity(&sid, "internet_unblocked", "manual", screen_time,
+        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
+        false, false);
     Ok(Json(ApiResponse {
         success: true,
         message: "🌐 Интернет возобновлён".to_string(),

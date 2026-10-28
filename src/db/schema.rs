@@ -92,6 +92,23 @@ pub fn apply(conn: &Connection) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_lock_events_user ON lock_events(user_sid, locked_at);
+
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_sid  TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            details   TEXT DEFAULT '',
+            screen_time_sec INTEGER DEFAULT 0,
+            internet_time_sec INTEGER DEFAULT 0,
+            screen_limit_sec INTEGER DEFAULT 0,
+            internet_limit_sec INTEGER DEFAULT 0,
+            is_locked INTEGER DEFAULT 0,
+            internet_paused INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_sid, created_at);
+        CREATE INDEX IF NOT EXISTS idx_activity_log_time ON activity_log(created_at);
     "#)?;
 
     ensure_column(conn, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")

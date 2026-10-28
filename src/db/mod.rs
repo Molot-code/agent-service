@@ -1,7 +1,7 @@
 mod impls;
 mod schema;
 
-pub use impls::SettingMeta;
+pub use impls::{ActivityLogEntry, SettingMeta};
 
 use std::{
     path::Path,

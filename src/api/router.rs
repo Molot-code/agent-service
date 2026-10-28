@@ -27,6 +27,7 @@ pub fn build(static_dir: std::path::PathBuf, state: AppState) -> Router {
         .route("/api/settings", get(web::get_settings))
         .route("/api/logs", get(web::list_log_dates))
         .route("/api/logs/{date}", get(web::get_logs))
+        .route("/api/activity_log/{sid}", get(web::get_activity_log))
         .route("/api/internet/status", get(control::internet_status))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth))
         .route("/api/defaults", get(system::get_defaults));

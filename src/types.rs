@@ -64,7 +64,7 @@ pub enum ManualAction {
     Unlock,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TodayLimit {
     pub limit_sec: i32,
     pub internet_limit_sec: i32,
