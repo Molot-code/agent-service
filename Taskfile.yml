@@ -7,9 +7,9 @@ tasks:
       - npx tailwindcss -i ./src/input.css -o ./static/tailwind.css --minify
 
   js:
-    desc: "Минификация app.js"
+    desc: "Сборка и минификация JS в один бандл"
     cmds:
-      - npx esbuild ./static/app.js --minify --outfile=./static/app.min.js
+      - npx esbuild ./static/js/app.js --bundle --minify --outfile=./static/app.min.js
 
   backend:
     desc: "Компиляция Rust бинарника в режиме Release"
