@@ -78,6 +78,15 @@ struct ExtraTimeRequest {
     internet_minutes: Option<i32>,
 }
 
+#[derive(Deserialize)]
+struct SetExtraTimeRequest {
+    sid: String,
+    #[serde(default)]
+    screen_minutes: Option<i32>,
+    #[serde(default)]
+    internet_minutes: Option<i32>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<AppDb>,
@@ -766,6 +775,43 @@ async fn extra_time(
     })))
 }
 
+async fn set_extra_time(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<SetExtraTimeRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    if !check_auth(&headers, &state) {
+        return Err(AppError::Unauthorized);
+    }
+
+    if req.sid.is_empty() {
+        return Err(AppError::BadRequest("sid is required".into()));
+    }
+
+    if req.screen_minutes.is_none() && req.internet_minutes.is_none() {
+        return Err(AppError::BadRequest("nothing to update".into()));
+    }
+
+    if let Some(minutes) = req.screen_minutes {
+        state.db.set_extra_time(&req.sid, minutes)?;
+    }
+
+    if let Some(minutes) = req.internet_minutes {
+        state.db.set_extra_internet_time(&req.sid, minutes)?;
+    }
+
+    if let Err(e) = do_sync_user_access(&state.db, &state.admin_cmd_tx, &req.sid).await {
+        log_error!("[set_extra_time] sync failed: {:?}", e);
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "sid": req.sid,
+        "screen_minutes": req.screen_minutes,
+        "internet_minutes": req.internet_minutes,
+    })))
+}
+
 async fn get_settings(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1078,6 +1124,7 @@ pub async fn start_api_server(
             )
             .route("/api/manual_action", post(manual_action))
             .route("/api/extra_time", post(extra_time))
+            .route("/api/set_extra_time", post(set_extra_time))
             .route("/api/settings", get(get_settings))
             .route("/api/check_pin", post(check_pin))
             .route("/api/set_pin", post(set_admin_pin))

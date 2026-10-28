@@ -382,67 +382,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        async saveToday() {
-            if (this.savingToday) return;
-            this.savingToday = true;
-            try {
-                const res = await fetch(`/api/today/${this.selectedUser}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.pin}` },
-                    body: JSON.stringify({
-                        limit_sec: this.today.limit_min * 60,
-                        internet_limit_sec: this.today.internet_limit_min * 60,
-                        extra_time_min: this.today.extra_min,
-                        extra_internet_time_min: this.today.internet_extra_min,
-                        start_time: this.today.start_time,
-                        end_time: this.today.end_time
-                    })
-                });
-                if (res.ok) {
-                    this.showStatus('✅ Лимит на сегодня сохранён');
-                    await this.loadUserData();
-                } else {
-                    this.showStatus('❌ Ошибка сохранения');
-                }
-            } catch (e) {
-                this.showStatus('❌ Ошибка сохранения');
-            } finally {
-                this.savingToday = false;
-            }
-        },
-
-        async saveWeekSchedule() {
-            if (this.savingSchedule) return;
-            this.savingSchedule = true;
-            try {
-                if (this.sameSchedule) {
-                    this.applyDailyToAll();
-                }
-                const schedule = this.weekDays.map((day, idx) => ({
-                    day_of_week: idx === 6 ? 0 : idx + 1,
-                    limit_sec: day.limit_min * 60,
-                    internet_limit_sec: day.internet_limit_min * 60,
-                    start_time: day.start_time,
-                    end_time: day.end_time
-                }));
-                const res = await fetch(`/api/schedule/${this.selectedUser}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.pin}` },
-                    body: JSON.stringify({ schedule })
-                });
-                if (res.ok) {
-                    this.showStatus('✅ Расписание сохранено');
-                    await this.loadUserData();
-                } else {
-                    this.showStatus('❌ Ошибка сохранения');
-                }
-            } catch (e) {
-                this.showStatus('❌ Ошибка сохранения');
-            } finally {
-                this.savingSchedule = false;
-            }
-        },
-
         // ===== EXTRA TIME для активного пользователя =====
 
         async addExtraTime(key, minutes, opts = {}) {
@@ -515,20 +454,43 @@ document.addEventListener('alpine:init', () => {
             else this.activeToday.internet_extra_min = v;
         },
 
-        // Пользователь отпустил ползунок / ушёл с поля — сохраняем дельту
+        // Пользователь отпустил ползунок / ушёл с поля — сохраняем абсолютное значение
         async commitExtra(kind) {
             const current = kind === 'screen'
                 ? this.activeToday.extra_min
                 : this.activeToday.internet_extra_min;
             const previous = this.extraSnapshot[kind] || 0;
 
-            const delta = current - previous;
-            if (delta === 0) return;   // нечего сохранять
+            if (current === previous) return;   // нечего сохранять
 
-            await this.addExtraTime(kind, delta, { silent: true });
+            const user = this.users.find(u => u.username === this.global.current_user);
+            if (!user) {
+                this.showStatus('❌ Активный пользователь не найден');
+                return;
+            }
 
-            // Обновляем snapshot по факту успеха
-            this.extraSnapshot[kind] = current;
+            const body = { sid: user.sid };
+            if (kind === 'screen') body.screen_minutes = current;
+            if (kind === 'internet') body.internet_minutes = current;
+
+            try {
+                const res = await fetch('/api/set_extra_time', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.pin}`
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (res.ok) {
+                    this.extraSnapshot[kind] = current;
+                } else {
+                    this.showStatus('❌ Ошибка сохранения');
+                }
+            } catch (e) {
+                this.showStatus('❌ Ошибка сети');
+            }
         },
 
         // Кнопки «−» / «+» — двигаем и сразу сохраняем

@@ -545,6 +545,32 @@ impl AppDb {
         Ok(())
     }
 
+    pub fn set_extra_time(&self, sid: &str, minutes: i32) -> Result<()> {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO daily_limits (user_sid, date, extra_time_min)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(user_sid, date) DO UPDATE SET
+                extra_time_min = ?3",
+            params![sid, today, minutes],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_extra_internet_time(&self, sid: &str, minutes: i32) -> Result<()> {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO daily_limits (user_sid, date, extra_internet_time_min)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(user_sid, date) DO UPDATE SET
+                extra_internet_time_min = ?3",
+            params![sid, today, minutes],
+        )?;
+        Ok(())
+    }
+
     // ===== Режим на сегодня (scheduled / manual) =====
     pub fn set_today_mode(&self, sid: &str, mode: &str, manual_until: &str) -> Result<()> {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
