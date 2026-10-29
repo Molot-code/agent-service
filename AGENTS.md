@@ -10,6 +10,7 @@
 - `rusqlite` (SQLite, WAL), `axum` 0.8 (HTTP), `minijinja` (шаблоны),
   `tokio`, `chrono`, `serde`, `tower-http` (статика).
 - **Фронтенд:** Alpine.js + Tailwind CSS (без npm-проекта, всё через npx/esbuild).
+  Плагин `Collapse` (`cdn-collapse.min.js`) подключается локально до ядра Alpine.
 - Три бинарника в `src/bin/`: `service.rs`, `cli.rs`, `tray.rs`.
 - Общий крейт — `src/lib.rs`.
 
@@ -19,10 +20,10 @@
 |---|---|
 | `lib.rs` | Реэкспорты модулей, `AdminCommand`, `SessionState`. |
 | `types.rs` | `ControlMode`, `ManualAction`, `TodayLimit`, `DaySchedule`, `SettingItem`, `TimeToEvent`, `AdminCommand`, `SessionState`. |
-| `config.rs` | Чтение `config.toml`, `get_cli_path()`, `get_tray_path()`. |
+| `config.rs` | Чтение `config.toml`, `get_cli_path()`, `get_tray_path()`. **Содержит `data_dir` (БД/токены) и `log_dir` (логи).** |
 | `db/mod.rs` | `AppDb`, конструкторы `new` / `new_default`, `DEFAULT_DB_DIR`. |
 | `db/schema.rs` | DDL + дефолтные `settings` + миграция `ensure_column`. **Единственное место, где CREATE/ALTER TABLE.** |
-| `db/impls/settings.rs` | `get_setting`, `set_setting`, `get_settings`, `get_setting_meta`, `get_state`, `set_state`. `SettingMeta` реэкспортируется как `crate::db::SettingMeta`. |
+| `db/impls/settings.rs` | `get_setting`, `set_setting`, `get_settings`, `get_setting_meta`, `get_state`, `set_state`, `apply_lock_status`, `apply_internet_block`. |
 | `db/impls/users.rs` | Пользователи + `cleanup_stale_users` (ставит `is_active=0`). |
 | `db/impls/schedule.rs` | `weekly_schedule`. |
 | `db/impls/limits.rs` | `daily_limits`: today limit, mode, extra time, internet pause. |
@@ -31,7 +32,7 @@
 | `api/mod.rs` | Реэкспорт `AppState`, `start_api_server`, DTO. |
 | `api/state.rs` | `AppState`; `init_api_token`, `init_tray_token`. |
 | `api/auth.rs` | `AuthLevel`, `check_auth_level`, middleware `require_auth`/`require_admin`. |
-| `api/dto.rs` | Все Serde-структуры запросов/ответов (включая `DefaultsResponse`). |
+| `api/dto.rs` | Все Serde-структуры запросов/ответов (включая `DefaultsResponse`, `ActivityLogEntryDto`). |
 | `api/util.rs` | `device_name`, `resolve_manual_until`, `apply_extra`, `set_internet_blocked`. |
 | `api/router.rs` | Сборка `Router` (только `.route()` + группы middleware). |
 | `api/server.rs` | `start_api_server`: токены, шаблоны, статика, bind, serve. |
@@ -44,7 +45,7 @@
 | `session.rs` | `execute_in_user_session`, `lock_session`. |
 | `users.rs` | Windows SID/users, `get_active_user_sid`. |
 | `discovery.rs`, `cloud_client.rs`, `scheduler.rs`, `logger.rs`, `error.rs`, `tray_ui.rs` | Как раньше. |
-| `bin/service.rs` | SCM, главный цикл, `apply_lock_state`, `enforce_lock_procedure`. |
+| `bin/service.rs` | SCM, главный цикл, `apply_lock_state`, `enforce_lock_procedure`, `current_state`, `log_activity_now`. |
 | `bin/cli.rs` | `lock <sec>`, `lock-system`, `unlock`, `check-pin <pin>`. |
 | `bin/tray.rs` | Tao + tray-icon, опрос `/api/status`. |
 
@@ -57,26 +58,27 @@
 
 | Путь | Что там |
 |---|---|
-| `static/js/app.js` | **Точка входа** (только импорты и мерж стейтов). |
+| `static/js/app.js` | **Точка входа** (импорты, мерж стейтов, сохранение вкладки/юзера в localStorage). |
 | `static/app.min.js` | Скомпилированный бандл (подключается в `index.html`). |
 | `static/js/api.js` | Обёртки `apiGet` / `apiPost` с авто-подстановкой `Bearer`. |
 | `static/js/state-auth.js` | Авторизация (PIN, логин, смена PIN). |
 | `static/js/state-defaults.js` | Загрузка дефолтов с бэка (`/api/defaults`). |
 | `static/js/state-status.js` | Глобальный статус (`global`), авто-обновление, activeToday. |
-| `static/js/state-users.js` | Список пользователей, выбор, загрузка today/schedule выбранного. |
+| `static/js/state-users.js` | Список пользователей, выбор, загрузка today/schedule/activity выбранного. |
 | `static/js/state-extra.js` | Слайдеры доп. времени (preview/commit). |
 | `static/js/state-schedule.js` | Расписание на неделю, сохранение today/schedule. |
 | `static/js/state-settings.js` | Глобальные настройки (табы, группировка, автосохранение). |
 | `static/js/state-logs.js` | Просмотр логов. |
-| `static/js/state-activity.js` | Activity log: загрузка, построение сегментов, график активности. |
+| `static/js/state-activity.js` | Activity log: загрузка, построение сегментов, график активности (5-минутные слоты). |
 | `static/js/state-manual.js` | Ручная блокировка/разблокировка (lock/unlock/auto). |
 | `static/js/format.js` | UI-хелперы (форматирование времени, проценты, цвета). |
 
 **Правила для фронтенда:**
 - Все файлы в `static/js/` должны использовать ES-модули (`export const ...`).
 - В `static/js/app.js` импортируются все стейты и мержатся в один Alpine-компонент.
-- Не подключать отдельные скрипты в `index.html` — только `/app.min.js`.
+- Не подключать отдельные скрипты в `index.html` — только `/app.min.js` (плюс локальные `cdn.min.js` и `cdn-collapse.min.js`).
 - Не хардкодить дефолты (лимиты, время) во фронтенде — они приходят с бэка через `/api/defaults`.
+- **Все даты/время с бэка приходят в UTC.** Конвертация в локальное время — на фронте (через `new Date(str + 'Z')`).
 
 ## Правила «куда лезть»
 
@@ -92,7 +94,9 @@
 | Настройки (дефолты) | `db/schema.rs` (INSERT OR IGNORE) и `config.toml [limits]` |
 | Логика «до конца дня» | `api/util.rs::resolve_manual_until` |
 | Добавить поле в UI | `static/js/state-*.js` (логика) + `templates/index.html` (верстка) |
-| Activity log (логирование событий) | `db/impls/usage.rs::log_activity` + вызовы в `bin/service.rs`, `api/handlers/control.rs` |
+| Activity log (логирование событий) | `db/impls/usage.rs::log_activity` + вызовы в `bin/service.rs` (через `activity::log_activity_now`) и `api/handlers/control.rs` |
+| Смена `state` в графике | `bin/activity.rs` (или `src/activity.rs`) — `current_state` |
+| Логи (чтение) | `api/handlers/web.rs::list_log_dates`, `get_logs` |
 
 ## Контракты API (не ломать без согласования)
 
@@ -105,7 +109,7 @@
 - `POST /api/manual_action` — `until: "YYYY-MM-DD HH:MM:SS"` или `"-1"`.
 - `GET /api/status` → `StatusResponse` (см. `api/dto.rs`).
 - `GET /api/defaults` → `DefaultsResponse` (источник правды для дефолтов UI).
-- `GET /api/activity_log/{sid}` → `ActivityLogResponse` (последние 100 событий пользователя).
+- `GET /api/activity_log/{sid}` → `ActivityLogResponse` (до 1000 событий пользователя). **В ответе обязательно есть поле `state`** (`active_scheduled`, `active_manual`, `no_internet`, `screen_locked`, `session_locked`).
 
 ## Контракты БД
 
@@ -116,6 +120,8 @@
 - `users.control_enabled` — рабочий флаг; `users.is_controlled` — legacy, не использовать.
 - `users.is_active` — новый, ставится в `0` через `cleanup_stale_users`. Существующие БД мигрируют через `ensure_column`.
 - `activity_log` — журнал событий (блокировки, разблокировки, heartbeat). Записывается автоматически при смене состояния.
+- **`activity_log.state`** — строковое поле, одно из: `active_scheduled`, `active_manual`, `no_internet`, `screen_locked`, `session_locked`. Пустая строка = «нет данных». Используется фронтендом для построения графика активности.
+- **`activity_log.created_at`** — **всегда в UTC** (`datetime('now')`). Фронт конвертирует в локальное время.
 
 ## Запреты
 
@@ -132,8 +138,8 @@
 - `cargo build --release` — прод-бинарь.
 - `task js` — пересобрать `app.min.js` (esbuild).
 - `task` (Taskfile) — полный пайплайн + Inno Setup.
-- Логи: `C:\ProgramData\ParentalControl\logs\YYYY-MM-DD\{service|agent_cli|agent_tray}.log`.
-- БД: `C:\ProgramData\ParentalControl\data.db`.
+- Логи: `C:\ProgramData\ParentalControl\logs\YYYY-MM-DD\{service|agent_cli|agent_tray|debug|error}.log`.
+- БД и токены: `C:\ProgramData\ParentalControl\{data.db|api_token.txt|tray_token.txt}` (в `data_dir`).
 
 ## Что где подробнее
 

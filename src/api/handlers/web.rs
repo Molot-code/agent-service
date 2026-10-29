@@ -360,7 +360,7 @@ pub async fn get_activity_log(
     AxumPath(sid): AxumPath<String>,
     Query(q): Query<ActivityLogQuery>,
 ) -> AppResult<Json<ActivityLogResponse>> {
-    let entries = state.db.get_activity_log(&sid, q.date.as_deref(), 100)?;
+    let entries = state.db.get_activity_log(&sid, q.date.as_deref(), 1000)?;
 
     let dtos: Vec<super::super::dto::ActivityLogEntryDto> = entries
         .into_iter()
@@ -372,10 +372,10 @@ pub async fn get_activity_log(
             internet_time_sec: e.internet_time_sec,
             screen_limit_sec: e.screen_limit_sec,
             internet_limit_sec: e.internet_limit_sec,
-            is_locked: e.is_locked != 0, // тут может быть просто e.is_locked, смотри тип
+            is_locked: e.is_locked != 0,
             internet_paused: e.internet_paused != 0,
             created_at: e.created_at,
-            state: e.state, // 🆕
+            state: e.state,
         })
         .collect();
 

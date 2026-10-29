@@ -9,19 +9,16 @@ use windows::Win32::System::RemoteDesktop::{
 };
 use windows_service::{
     define_windows_service,
-    // В версии 0.8.1 абсолютно все типы, связанные со свойствами службы, лежат здесь:
     service::{
         ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl, ServiceExitCode,
         ServiceInfo, ServiceStartType, ServiceState, ServiceStatus, ServiceType,
     },
     service_control_handler::{self, ServiceControlHandlerResult},
     service_dispatcher,
-    // Отсюда нам нужен только сам менеджер
     service_manager::{ServiceManager, ServiceManagerAccess},
 };
 
 use crate::users::get_active_user_sid;
-// Определяем событие сессии (можно вынести в types.rs, если хотите)
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
     Lock(u32),
@@ -220,47 +217,15 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
             log_info!("ℹ️ Облачный клиент отключён (режим Local)");
         }
 
-        // 🆕 Запуск трея через 2 секунды после старта API.
-        //    Установщик сразу открывает веб-панель, поэтому API должен быть готов раньше трея.
+        // 🆕 Запуск трея СРАЗУ (без ожидания API).
+        //    Трей сам будет ждать, пока API поднимется, и опрашивать его.
         if current_mode.needs_local_api() {
-            let port = config.service.api_port;
-            tokio::spawn(async move {
-                // Ждём, пока API ответит на /health (максимум 15 секунд)
-                let client = reqwest::Client::builder()
-                    .timeout(Duration::from_millis(500))
-                    .build()
-                    .ok();
-
-                let api_url = format!("http://127.0.0.1:{}/health", port);
-                let mut api_ready = false;
-
-                if let Some(client) = client {
-                    for attempt in 1..=15 {
-                        match client.get(&api_url).send().await {
-                            Ok(resp) if resp.status().is_success() => {
-                                log_info!("[Tray] API готов (попытка {}), запускаю трей", attempt);
-                                api_ready = true;
-                                break;
-                            }
-                            _ => {
-                                log_debug!("[Tray] API не отвечает (попытка {})", attempt);
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                            }
-                        }
-                    }
-                }
-
-                if !api_ready {
-                    log_info!("[Tray] API не поднялся за 15 сек, всё равно запускаю трей");
-                }
-
-                if get_active_user_sid().is_some() {
-                    log_info!("[Tray] запускаю трей");
-                    std::thread::spawn(|| spawn_tray());
-                } else {
-                    log_debug!("[Tray] нет активного пользователя, трей не запускаю");
-                }
-            });
+            if get_active_user_sid().is_some() {
+                log_info!("[Tray] Запускаю трей (без ожидания /health)");
+                std::thread::spawn(|| spawn_tray());
+            } else {
+                log_debug!("[Tray] нет активного пользователя, трей не запускаю");
+            }
         }
 
         let mut tick_interval = tokio::time::interval(Duration::from_secs(config.service.tick_duration_secs));
@@ -852,8 +817,8 @@ fn install_service() -> Result<(), Box<dyn std::error::Error>> {
         launch_arguments: vec![],
         dependencies: vec![],
         service_type: ServiceType::OWN_PROCESS,
-        start_type: ServiceStartType::AutoStart, // CamelCase для 0.8.1
-        error_control: ServiceErrorControl::Normal, // CamelCase для 0.8.1
+        start_type: ServiceStartType::AutoStart,
+        error_control: ServiceErrorControl::Normal,
         account_name: None,
         account_password: None,
     };
