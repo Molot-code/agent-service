@@ -148,8 +148,14 @@ impl ControlMode {
     pub fn as_str(&self) -> &'static str {
         match self {
             ControlMode::Disabled => "control_disabled",
-            ControlMode::Manual { action: ManualAction::Lock, .. } => "manual_lock",
-            ControlMode::Manual { action: ManualAction::Unlock, .. } => "manual_unlock",
+            ControlMode::Manual {
+                action: ManualAction::Lock,
+                ..
+            } => "manual_lock",
+            ControlMode::Manual {
+                action: ManualAction::Unlock,
+                ..
+            } => "manual_unlock",
             ControlMode::Scheduled => "scheduled",
         }
     }
@@ -166,16 +172,16 @@ pub struct DefaultsResponse {
 
 #[derive(Serialize)]
 pub struct DayDefaults {
-    pub start_time: String,          // "08:00"
-    pub end_time: String,            // "20:00"
-    pub limit_min: i32,              // 120
-    pub internet_limit_min: i32,     // 120
+    pub start_time: String,      // "08:00"
+    pub end_time: String,        // "20:00"
+    pub limit_min: i32,          // 120
+    pub internet_limit_min: i32, // 120
 }
 
 #[derive(Serialize)]
 pub struct WeekDayInfo {
-    pub day_of_week: u32,            // 0=Sun..6=Sat (как в БД)
-    pub name: String,                // "Понедельник"
+    pub day_of_week: u32, // 0=Sun..6=Sat (как в БД)
+    pub name: String,     // "Понедельник"
     /// Индекс для фронтового массива `weekDays` (Пн=0..Вс=6).
     pub frontend_idx: usize,
 }
@@ -197,4 +203,5 @@ pub struct ActivityLogEntryDto {
     pub is_locked: bool,
     pub internet_paused: bool,
     pub created_at: String,
+    pub state: String, // 🆕 Добавили
 }

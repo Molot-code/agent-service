@@ -1,3 +1,4 @@
+// src/db/schema.rs
 use rusqlite::{Connection, Result};
 
 pub fn apply(conn: &Connection) -> Result<()> {
@@ -104,12 +105,16 @@ pub fn apply(conn: &Connection) -> Result<()> {
             internet_limit_sec INTEGER DEFAULT 0,
             is_locked INTEGER DEFAULT 0,
             internet_paused INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            state TEXT DEFAULT ''
         );
 
         CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_sid, created_at);
         CREATE INDEX IF NOT EXISTS idx_activity_log_time ON activity_log(created_at);
     "#)?;
+
+    // Добавляем колонку state для существующих БД (если её ещё нет)
+    ensure_column(conn, "activity_log", "state", "TEXT DEFAULT ''")?;
 
     ensure_column(conn, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
 }

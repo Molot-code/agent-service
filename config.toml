@@ -13,7 +13,8 @@ host = "127.0.0.1"
 update_interval_sec = 5
 
 [paths]
-log_dir    = "C:\\ProgramData\\ParentalControl"
+data_dir = "C:\\ProgramData\\ParentalControl"
+log_dir = "C:\\ProgramData\\ParentalControl\\logs"
 static_dir = "static"
 agent_cli  = [
     "C:\\Program Files\\ParentalControl\\agent-cli.exe",

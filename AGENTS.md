@@ -26,7 +26,7 @@
 | `db/impls/users.rs` | Пользователи + `cleanup_stale_users` (ставит `is_active=0`). |
 | `db/impls/schedule.rs` | `weekly_schedule`. |
 | `db/impls/limits.rs` | `daily_limits`: today limit, mode, extra time, internet pause. |
-| `db/impls/usage.rs` | `daily_usage` + `lock_events`. |
+| `db/impls/usage.rs` | `daily_usage`, `lock_events`, `activity_log` (log_activity, get_activity_log). |
 | `policy.rs` | `evaluate_access`, `should_lock`, `calculate_time_to_event`, `do_sync_user_access`. |
 | `api/mod.rs` | Реэкспорт `AppState`, `start_api_server`, DTO. |
 | `api/state.rs` | `AppState`; `init_api_token`, `init_tray_token`. |
@@ -57,7 +57,7 @@
 
 | Путь | Что там |
 |---|---|
-| `static/app.js` | **Точка входа** (только импорты и мерж стейтов). |
+| `static/js/app.js` | **Точка входа** (только импорты и мерж стейтов). |
 | `static/app.min.js` | Скомпилированный бандл (подключается в `index.html`). |
 | `static/js/api.js` | Обёртки `apiGet` / `apiPost` с авто-подстановкой `Bearer`. |
 | `static/js/state-auth.js` | Авторизация (PIN, логин, смена PIN). |
@@ -68,12 +68,13 @@
 | `static/js/state-schedule.js` | Расписание на неделю, сохранение today/schedule. |
 | `static/js/state-settings.js` | Глобальные настройки (табы, группировка, автосохранение). |
 | `static/js/state-logs.js` | Просмотр логов. |
+| `static/js/state-activity.js` | Activity log: загрузка, построение сегментов, график активности. |
 | `static/js/state-manual.js` | Ручная блокировка/разблокировка (lock/unlock/auto). |
 | `static/js/format.js` | UI-хелперы (форматирование времени, проценты, цвета). |
 
 **Правила для фронтенда:**
 - Все файлы в `static/js/` должны использовать ES-модули (`export const ...`).
-- В `static/app.js` импортируются все стейты и мержатся в один Alpine-компонент.
+- В `static/js/app.js` импортируются все стейты и мержатся в один Alpine-компонент.
 - Не подключать отдельные скрипты в `index.html` — только `/app.min.js`.
 - Не хардкодить дефолты (лимиты, время) во фронтенде — они приходят с бэка через `/api/defaults`.
 
@@ -91,6 +92,7 @@
 | Настройки (дефолты) | `db/schema.rs` (INSERT OR IGNORE) и `config.toml [limits]` |
 | Логика «до конца дня» | `api/util.rs::resolve_manual_until` |
 | Добавить поле в UI | `static/js/state-*.js` (логика) + `templates/index.html` (верстка) |
+| Activity log (логирование событий) | `db/impls/usage.rs::log_activity` + вызовы в `bin/service.rs`, `api/handlers/control.rs` |
 
 ## Контракты API (не ломать без согласования)
 
@@ -103,6 +105,7 @@
 - `POST /api/manual_action` — `until: "YYYY-MM-DD HH:MM:SS"` или `"-1"`.
 - `GET /api/status` → `StatusResponse` (см. `api/dto.rs`).
 - `GET /api/defaults` → `DefaultsResponse` (источник правды для дефолтов UI).
+- `GET /api/activity_log/{sid}` → `ActivityLogResponse` (последние 100 событий пользователя).
 
 ## Контракты БД
 
@@ -112,6 +115,7 @@
 - Секреты (`admin_pin`, `api_token`, `tray_token`) хранятся в `settings` с `is_secret=1`.
 - `users.control_enabled` — рабочий флаг; `users.is_controlled` — legacy, не использовать.
 - `users.is_active` — новый, ставится в `0` через `cleanup_stale_users`. Существующие БД мигрируют через `ensure_column`.
+- `activity_log` — журнал событий (блокировки, разблокировки, heartbeat). Записывается автоматически при смене состояния.
 
 ## Запреты
 

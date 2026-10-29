@@ -1,8 +1,8 @@
+use chrono::Local;
 use rusqlite::{params, Result};
 
-use crate::types::SettingItem;
-
 use super::super::AppDb;
+use crate::types::SettingItem;
 
 /// Метаданные настройки (для UI/валидации).
 pub struct SettingMeta {
@@ -100,5 +100,55 @@ impl AppDb {
         )?
         .execute(params![key, value])?;
         Ok(())
+    }
+}
+
+impl AppDb {
+    /// Пишет state.lock_status. Возвращает true, если состояние изменилось.
+    pub fn apply_lock_status(&self, locked: bool) -> Result<bool> {
+        let prev_locked = self.get_state("lock_status").ok().flatten().as_deref() == Some("true");
+        if prev_locked == locked {
+            return Ok(false);
+        }
+        self.set_state("lock_status", if locked { "true" } else { "false" })?;
+        Ok(true)
+    }
+
+    /// Атомарно пишет per-user internet_paused И глобальный system_state.internet_blocked.
+    /// Возвращает true, если состояние фактически изменилось.
+    /// Кладём сюда же, рядом с set_state — логически это «состояния».
+    pub fn apply_internet_block(&self, sid: &str, blocked: bool, source: &str) -> Result<bool> {
+        use rusqlite::OptionalExtension;
+
+        let today = Local::now().format("%Y-%m-%d").to_string();
+        let conn = self.conn.lock().unwrap();
+
+        let prev: Option<i32> = conn
+            .query_row(
+                "SELECT internet_paused FROM daily_limits
+                 WHERE user_sid = ?1 AND date = ?2",
+                params![sid, today],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let prev_blocked = prev.map(|v| v != 0).unwrap_or(false);
+
+        conn.execute(
+            "INSERT INTO daily_limits
+                (user_sid, date, internet_paused, internet_paused_source)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(user_sid, date) DO UPDATE SET
+                internet_paused = ?3, internet_paused_source = ?4",
+            params![sid, today, blocked as i32, source],
+        )?;
+
+        conn.prepare_cached(
+            "INSERT INTO system_state (key, value, updated_at)
+             VALUES ('internet_blocked', ?1, datetime('now'))
+             ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')",
+        )?
+        .execute(params![if blocked { "true" } else { "false" }])?;
+
+        Ok(prev_blocked != blocked)
     }
 }

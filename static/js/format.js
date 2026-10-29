@@ -92,4 +92,23 @@ export const FormatHelpers = () => ({
         const reason = reasonMap[ev.reason] || '';
         return reason ? `${action} (${reason})` : action;
     },
+
+    formatTimeUntil(minutes) {
+        if (minutes === null || minutes <= 0) return '';
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        if (h > 0 && m > 0) return `${h} ч ${m} мин`;
+        if (h > 0) return `${h} ч`;
+        return `${m} мин`;
+    },
+    getWeekDayName(dow) {
+        const names = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+        return names[dow] || 'День';
+    },
+    formatDuration(seconds) {
+        if (!seconds) return '0 мин';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
+    },
 });

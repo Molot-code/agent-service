@@ -1,13 +1,9 @@
 mod impls;
 mod schema;
 
+use std::{path::Path, sync::Mutex};
+
 pub use impls::{ActivityLogEntry, SettingMeta};
-
-use std::{
-    path::Path,
-    sync::Mutex,
-};
-
 use rusqlite::{Connection, Result};
 
 use crate::config::Config;
@@ -27,12 +23,14 @@ impl AppDb {
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
         schema::apply(&conn)?;
 
-        Ok(Self { conn: Mutex::new(conn) })
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     pub fn new_default() -> Result<Self> {
         let dir = Config::load()
-            .map(|c| c.paths.log_dir)
+            .map(|c| c.paths.data_dir)
             .unwrap_or_else(|_| DEFAULT_DB_DIR.to_string());
         Self::new(dir)
     }

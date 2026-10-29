@@ -15,7 +15,7 @@ pub struct Config {
 pub struct ServiceConfig {
     pub name: String,
     #[serde(default = "default_display_name")]
-    pub display_name: String, // 🆕
+    pub display_name: String,
     pub api_port: u16,
     #[serde(default = "default_tick")]
     pub tick_duration_secs: u64,
@@ -24,12 +24,13 @@ pub struct ServiceConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PathsConfig {
+    pub data_dir: String,
     pub log_dir: String,
     pub static_dir: String,
     #[serde(default)]
     pub agent_cli: Vec<String>,
-    #[serde(default)] // 🆕
-    pub agent_tray: Vec<String>, // 🆕
+    #[serde(default)]
+    pub agent_tray: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -95,7 +96,11 @@ impl Config {
                 update_interval_sec: 5,
             },
             paths: PathsConfig {
-                log_dir: r"C:\ProgramData\ParentalControl".to_string(),
+                // 🆕 Корень для базы данных и токенов
+                data_dir: r"C:\ProgramData\ParentalControl".to_string(),
+                // 🆕 Логи лежат в подпапке logs
+                log_dir: r"C:\ProgramData\ParentalControl\logs".to_string(),
+
                 static_dir: "static".to_string(),
                 agent_cli: vec![
                     r"C:\Program Files\ParentalControl\agent-cli.exe".to_string(),

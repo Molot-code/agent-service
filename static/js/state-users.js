@@ -2,59 +2,69 @@ import { apiGet, apiPost } from './api.js';
 
 export const UsersState = () => ({
     users: [],
-    selectedUser: '',
+    selectedUser: null,
+    loadingUsers: false,
     loadingUserData: false,
 
-    async loadData() {
-        await this.loadGlobal();
-        await this.loadSettings();
-        await this.loadUsers();
-        this.startAutoRefresh();
-    },
-
     async loadUsers() {
+        this.loadingUsers = true;
         try {
             this.users = await apiGet('/api/users');
-            if (this.users.length > 0 && !this.selectedUser) {
-                const activeName = this.global.current_user;
-                const activeUser = (activeName && activeName !== 'Нет активных сессий')
-                    ? this.users.find(u => u.username === activeName)
-                    : null;
-                this.selectedUser = activeUser ? activeUser.sid : this.users[0].sid;
-                await this.loadUserData();
+
+            // 🆕 Если пользователь ещё не выбран, берем из localStorage или первого активного
+            if (!this.selectedUser && this.users.length > 0) {
+                const saved = localStorage.getItem('selectedUserSid');
+                if (saved && this.users.some(u => u.sid === saved)) {
+                    this.selectedUser = saved;
+                } else {
+                    const activeUser = this.users.find(u => u.is_control_enabled);
+                    this.selectedUser = activeUser ? activeUser.sid : this.users[0].sid;
+                }
             }
+            // ❌ Убрали вызов this.loadUserData() отсюда! Его вызовет app.js
         } catch (e) {
             console.error('Ошибка загрузки пользователей:', e);
+        } finally {
+            this.loadingUsers = false;
         }
     },
 
     async loadUserData() {
         if (!this.selectedUser) return;
+
+        // Сохраняем пользователя при загрузке его данных
+        localStorage.setItem('selectedUserSid', this.selectedUser);
+
         this.loadingUserData = true;
         try {
-            const today = await apiGet(`/api/today/${this.selectedUser}`);
+            const [todayData, schedData] = await Promise.all([
+                apiGet(`/api/today/${this.selectedUser}`),
+                apiGet(`/api/schedule/${this.selectedUser}`),
+                this.loadActivityLog()
+            ]);
+
+            // 1. Данные на сегодня
             this.today = {
-                start_time: today.start_time || '08:00',
-                end_time: today.end_time || '20:00',
-                limit_min: Math.floor((today.limit_sec ?? 7200) / 60),
-                internet_limit_min: Math.floor((today.internet_limit_sec ?? 7200) / 60),
-                extra_min: today.extra_time_min || 0,
-                internet_extra_min: today.extra_internet_time_min || 0,
-                screen_time: today.current_screen_time || 0,
-                internet_time: today.current_internet_time || 0,
+                start_time: todayData.start_time || '08:00',
+                end_time: todayData.end_time || '20:00',
+                limit_min: Math.floor((todayData.limit_sec ?? 7200) / 60),
+                internet_limit_min: Math.floor((todayData.internet_limit_sec ?? 7200) / 60),
+                extra_min: todayData.extra_time_min || 0,
+                internet_extra_min: todayData.extra_internet_time_min || 0,
+                screen_time: todayData.current_screen_time || 0,
+                internet_time: todayData.current_internet_time || 0
             };
 
-            const { schedule } = await apiGet(`/api/schedule/${this.selectedUser}`);
-            if (schedule?.length === 7) {
-                schedule.forEach((day) => {
-                    const feIdx = day.day_of_week === 0 ? 6 : day.day_of_week - 1;
-                    const d = this.weekDays[feIdx];
-                    if (!d) return;
-                    d.start_time = day.start_time;
-                    d.end_time = day.end_time;
-                    d.limit_min = Math.floor(day.limit_sec / 60);
-                    d.internet_limit_min = Math.floor(day.internet_limit_sec / 60);
-                });
+            // 2. Расписание
+            if (schedData.schedule && Array.isArray(schedData.schedule)) {
+                this.weekDays = schedData.schedule.map(day => ({
+                    name: this.getWeekDayName(day.day_of_week),
+                    day_of_week: day.day_of_week,
+                    start_time: day.start_time,
+                    end_time: day.end_time,
+                    limit_min: Math.floor(day.limit_sec / 60),
+                    internet_limit_min: Math.floor(day.internet_limit_sec / 60)
+                }));
                 this.sameSchedule = this.checkSameSchedule();
                 this.syncDailyFromWeek();
             }
@@ -66,26 +76,18 @@ export const UsersState = () => ({
     },
 
     async toggleControl(sid, enabled) {
-        if (!sid) return;
         try {
             await apiPost('/api/users/toggle_control', { sid, enabled });
-            const u = this.users.find(u => u.sid === sid);
-            if (u) u.is_control_enabled = enabled;
-            await this.loadGlobal();
+            const user = this.users.find(u => u.sid === sid);
+            if (user) user.is_control_enabled = enabled;
+            this.showStatus(enabled ? '✅ Контроль включен' : '✅ Контроль отключен');
         } catch (e) {
             this.showStatus('❌ ' + e.message);
         }
     },
 
-    goToUsersTab() {
-        this.tab = 'users';
-        if (this.global.current_user && this.global.current_user !== 'Нет активных сессий') {
-            const u = this.users.find(x => x.username === this.global.current_user);
-            if (u) { this.selectedUser = u.sid; this.loadUserData(); }
-        }
-    },
-
     async enableControlForSelectedUser() {
-        if (this.selectedUser) await this.toggleControl(this.selectedUser, true);
+        if (!this.selectedUser) return;
+        await this.toggleControl(this.selectedUser, true);
     },
 });

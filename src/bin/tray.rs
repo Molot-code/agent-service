@@ -61,7 +61,7 @@ impl TrayEnv {
     fn from_config(cfg: &Config) -> Self {
         Self {
             api_base: format!("http://{}:{}", cfg.tray.host, cfg.service.api_port),
-            token_file: Path::new(&cfg.paths.log_dir)
+            token_file: Path::new(&cfg.paths.data_dir)
                 .join("tray_token.txt")
                 .to_string_lossy()
                 .to_string(),
@@ -330,7 +330,7 @@ fn main() {
     let config = Config::new();
 
     // 2. Логгер
-    let logs_path = std::path::Path::new(&config.paths.log_dir).join("logs");
+    let logs_path = std::path::Path::new(&config.paths.log_dir);
     agent_windows::logger::init_global_logger(
         &logs_path.to_string_lossy(),
         "agent_tray",

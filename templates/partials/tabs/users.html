@@ -53,6 +53,166 @@
     {# Блоки настроек #}
     <template x-if="selectedUser && users.find(u => u.sid === selectedUser)?.is_control_enabled">
         <div class="space-y-4">
+            {# ===== Блок «Активность» ===== #}
+            <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-purple-500">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base sm:text-lg md:text-xl font-bold text-gray-800">
+                        📈 Активность за <span x-text="activityDateHeader()"></span>
+                    </h2>
+
+                    {# Кнопка-календарь с всплывающим date picker #}
+                    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                        <button @click="open = !open"
+                            class="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+                            <span>📅</span>
+                            <span x-text="activityDateLabel()"></span>
+                        </button>
+
+                        {# Всплывающий календарь #}
+                        <div x-show="open" x-transition
+                            class="absolute right-0 mt-2 z-20 bg-white border rounded-lg shadow-lg p-3 w-72">
+
+                            {# Навигация по месяцам #}
+                            <div class="flex items-center justify-between mb-2">
+                                <button @click="activityPrevMonth()"
+                                    class="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">◀</button>
+                                <span class="font-semibold text-sm" x-text="activityMonthLabel()"></span>
+                                <button @click="activityNextMonth()"
+                                    class="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded">▶</button>
+                            </div>
+
+                            {# Сетка календаря #}
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-gray-500">
+                                        <th class="py-1">Пн</th><th class="py-1">Вт</th><th class="py-1">Ср</th>
+                                        <th class="py-1">Чт</th><th class="py-1">Пт</th><th class="py-1">Сб</th>
+                                        <th class="py-1">Вс</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(row, rowIdx) in activityCalendarRows" :key="rowIdx">
+                                        <tr>
+                                            <template x-for="(day, dayIdx) in row" :key="dayIdx">
+                                                <td class="py-0.5 text-center">
+                                                    <template x-if="day">
+                                                        <button
+                                                            @click="selectActivityDate(day.date); open = false"
+                                                            class="w-8 h-8 rounded transition-colors"
+                                                            :class="activityDayClass(day)">
+                                                            <span x-text="day.day"></span>
+                                                        </button>
+                                                    </template>
+                                                </td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {# Легенда #}
+                <div class="flex flex-wrap gap-3 mb-4 text-xs">
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-green-500 rounded"></div>
+                        <span>Активность</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-lime-300 rounded"></div>
+                        <span>Без интернета</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-amber-700 rounded"></div>
+                        <span>Сессия заблокирована (Win+L)</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-red-500 rounded"></div>
+                        <span>Заблокирован</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-blue-500 rounded"></div>
+                        <span>Ручная разблокировка</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-4 h-4 bg-gray-200 rounded"></div>
+                        <span>Нет данных</span>
+                    </div>
+                </div>
+
+                {# График активности (288 слотов по 5 минут) #}
+                <div class="relative mt-2">
+                    {# Временная шкала сверху (каждый час) #}
+                    <div class="flex mb-1">
+                        <template x-for="h in 24" :key="h">
+                            <div class="flex-1 text-center text-xs text-gray-500 border-l border-gray-300" x-text="h - 1"></div>
+                        </template>
+                    </div>
+
+                    {# Цветные блоки по 5 минут #}
+                    <div class="flex h-16 rounded overflow-hidden border border-gray-200">
+                        <template x-for="slot in 288" :key="slot">
+                            <div class="flex-1 relative group"
+                                :class="[
+                                    getSlotColor(slot - 1),
+                                    (slot - 1) % 12 === 0 ? 'border-l border-gray-400/50' : ''
+                                ]"
+                                :title="getSlotDetails(slot - 1)">
+                                {# Tooltip при наведении #}
+                                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-pre-line z-10 w-max">
+                                    <span x-text="getSlotDetails(slot - 1)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    {# Временная шкала снизу (каждый час) #}
+                    <div class="flex mt-1">
+                        <template x-for="h in 24" :key="h">
+                            <div class="flex-1 text-center text-xs text-gray-500 border-l border-gray-300" x-text="h - 1"></div>
+                        </template>
+                    </div>
+                </div>
+
+                {# Кнопка-аккордеон #}
+                <div class="mt-4 border-t pt-4">
+                    <button @click="showEvents = !showEvents" 
+                        class="w-full flex items-center justify-between px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm transition-colors">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                            </svg>
+                            Список событий за день
+                        </span>
+                        <svg class="w-4 h-4 transition-transform duration-200" 
+                             :class="showEvents ? 'rotate-180' : ''" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    {# Выпадающий список #}
+                    <div x-show="showEvents" x-collapse style="display: none;" class="mt-2">
+                        <div class="max-h-44 overflow-y-auto space-y-1 text-xs border rounded-lg p-2 bg-gray-50 custom-scrollbar">
+                            <template x-for="entry in [...activityLog].filter(e => e.event_type !== 'heartbeat').reverse()" :key="entry.id">
+                                <div class="flex items-start gap-3 p-2 hover:bg-white rounded transition-colors border-b border-gray-100 last:border-0">
+                                    <span class="text-gray-500 font-mono shrink-0 w-20" x-text="formatEventTime(entry.created_at)"></span>
+                                    <span class="font-medium shrink-0 w-32 truncate" :class="{
+                                        'text-red-600': entry.event_type.includes('lock'),
+                                        'text-green-600': entry.event_type.includes('unlock'),
+                                        'text-blue-600': entry.event_type.includes('manual'),
+                                    }" x-text="entry.event_type"></span>
+                                    <span class="text-gray-600 break-all" x-text="entry.details"></span>
+                                </div>
+                            </template>
+                            <div x-show="activityLog.length === 0" class="text-gray-400 italic py-6 text-center">
+                                Нет событий за этот день
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {# ===== Блок «Сегодня» ===== #}
             <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-green-500">

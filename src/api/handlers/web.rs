@@ -7,15 +7,8 @@ use axum::{
     Json,
 };
 use minijinja::context;
+use serde::Deserialize;
 use serde_json::json;
-
-use crate::{
-    error::{AppError, AppResult},
-    log_error, log_info,
-    policy::{do_sync_user_access, evaluate_access},
-    types::SettingItem,
-    users::get_active_user_sid,
-};
 
 use super::super::{
     dto::{
@@ -25,8 +18,17 @@ use super::super::{
     util::device_name,
     AppState,
 };
+use crate::{
+    error::{AppError, AppResult},
+    log_error, log_info,
+    policy::{do_sync_user_access, evaluate_access},
+    types::SettingItem,
+    users::get_active_user_sid,
+};
 
-pub async fn index_page(State(state): State<AppState>) -> AppResult<impl axum::response::IntoResponse> {
+pub async fn index_page(
+    State(state): State<AppState>,
+) -> AppResult<impl axum::response::IntoResponse> {
     let tmpl = state
         .env
         .get_template("index.html")
@@ -37,7 +39,10 @@ pub async fn index_page(State(state): State<AppState>) -> AppResult<impl axum::r
         .map_err(|e| AppError::Internal(format!("render failed: {e}")))?;
 
     let mut headers = axum::http::HeaderMap::new();
-    headers.insert(header::CACHE_CONTROL, "no-store, no-cache, must-revalidate".parse().unwrap());
+    headers.insert(
+        header::CACHE_CONTROL,
+        "no-store, no-cache, must-revalidate".parse().unwrap(),
+    );
     headers.insert(header::PRAGMA, "no-cache".parse().unwrap());
     headers.insert(header::EXPIRES, "0".parse().unwrap());
 
@@ -50,8 +55,16 @@ pub async fn get_status(State(state): State<AppState>) -> AppResult<Json<StatusR
         .get_setting("lock_message")?
         .unwrap_or_else(|| "🔒 КОМПЬЮТЕР ЗАБЛОКИРОВАН".to_string());
 
-    let is_locked = state.db.get_state("lock_status")?.map(|s| s == "true").unwrap_or(false);
-    let session_locked = state.db.get_state("session_locked")?.map(|s| s == "true").unwrap_or(false);
+    let is_locked = state
+        .db
+        .get_state("lock_status")?
+        .map(|s| s == "true")
+        .unwrap_or(false);
+    let session_locked = state
+        .db
+        .get_state("session_locked")?
+        .map(|s| s == "true")
+        .unwrap_or(false);
     let device_name = device_name(&state);
 
     let Some(active_sid) = get_active_user_sid() else {
@@ -88,7 +101,7 @@ pub async fn get_status(State(state): State<AppState>) -> AppResult<Json<StatusR
 
     let unlock_until = match policy.mode {
         crate::types::ControlMode::Manual { until, .. } => {
-            Some(until.format("%Y-%m-%d %H:%M:%S").to_string())
+            Some(until.format("%Y-%m-%d %H:MM:SS").to_string())
         }
         _ => None,
     };
@@ -222,7 +235,12 @@ pub async fn get_settings(State(state): State<AppState>) -> AppResult<Json<Vec<S
 }
 
 pub async fn list_log_dates(State(state): State<AppState>) -> AppResult<Json<Vec<String>>> {
-    let dir = Path::new(&state.config.paths.log_dir).join("logs");
+    let dir = Path::new(&state.config.paths.log_dir);
+    log_info!(
+        "🔍 [API] Ищу логи в папке: {:?} (существует: {})",
+        dir,
+        dir.exists()
+    );
     let mut dates: Vec<String> = std::fs::read_dir(&dir)
         .map_err(|e| AppError::Internal(format!("read logs dir: {e}")))?
         .filter_map(|e| e.ok())
@@ -243,7 +261,7 @@ pub async fn get_logs(
         return Err(AppError::BadRequest("invalid date".into()));
     }
 
-    let dir = Path::new(&state.config.paths.log_dir).join("logs").join(&date);
+    let dir = Path::new(&state.config.paths.log_dir).join(&date);
     if !dir.exists() {
         return Ok(Json(json!({ "lines": [], "files": [] })));
     }
@@ -278,10 +296,8 @@ fn level_matches(line: &str, min_level: &str) -> bool {
     }
 }
 
+use super::super::dto::{ApiResponse, SetParamRequest};
 use crate::scheduler;
-
-use super::super::dto::SetParamRequest;
-use super::super::dto::ApiResponse;
 
 pub async fn set_param(
     State(state): State<AppState>,
@@ -333,11 +349,19 @@ pub async fn set_param(
     }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ActivityLogQuery {
+    /// YYYY-MM-DD; если не задан — берём сегодня
+    pub date: Option<String>,
+}
+
 pub async fn get_activity_log(
     State(state): State<AppState>,
     AxumPath(sid): AxumPath<String>,
+    Query(q): Query<ActivityLogQuery>,
 ) -> AppResult<Json<ActivityLogResponse>> {
-    let entries = state.db.get_activity_log(&sid, 100)?;
+    let entries = state.db.get_activity_log(&sid, q.date.as_deref(), 100)?;
+
     let dtos: Vec<super::super::dto::ActivityLogEntryDto> = entries
         .into_iter()
         .map(|e| super::super::dto::ActivityLogEntryDto {
@@ -348,10 +372,12 @@ pub async fn get_activity_log(
             internet_time_sec: e.internet_time_sec,
             screen_limit_sec: e.screen_limit_sec,
             internet_limit_sec: e.internet_limit_sec,
-            is_locked: e.is_locked != 0,
+            is_locked: e.is_locked != 0, // тут может быть просто e.is_locked, смотри тип
             internet_paused: e.internet_paused != 0,
             created_at: e.created_at,
+            state: e.state, // 🆕
         })
         .collect();
+
     Ok(Json(ActivityLogResponse { entries: dtos }))
 }

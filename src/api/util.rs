@@ -63,8 +63,7 @@ pub fn set_internet_blocked(
         firewall::set_block_enabled(sid, false)
             .map_err(|e| AppError::Internal(format!("firewall disable: {e}")))?;
     }
-    db.set_internet_paused(sid, blocked, source)?;
-    db.set_state("internet_blocked", if blocked { "true" } else { "false" })?;
+    db.apply_internet_block(sid, blocked, source)?;
     log_info!(
         "[API] Интернет {} для {}",
         if blocked { "на паузе" } else { "возобновлён" },

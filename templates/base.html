@@ -4,16 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Родительский контроль{% endblock %}</title>
-    <script defer src="alpine.min.js"></script>
+    <!-- 1. Плагин Collapse (ОБЯЗАТЕЛЬНО ДО ядра Alpine) -->
+    <script defer src="cdn-collapse.min.js"></script>    
+    <script defer src="cdn.min.js"></script>
     <link href="tailwind.css" rel="stylesheet">
-    <script src="/app.min.js"></script>
+    <script src="app.min.js"></script>
     <style>
         button, a { touch-action: manipulation; }
         .pin-input { letter-spacing: 0.5em; text-align: center; font-size: 1.5rem; }
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-sm sm:text-base" x-data="app" x-init="init()" x-cloak>
+<body class="bg-gray-100 min-h-screen text-sm sm:text-base" x-data="app" x-cloak>
     {% block content %}{% endblock %}
 </body>
 </html>

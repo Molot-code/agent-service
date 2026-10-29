@@ -28,8 +28,8 @@ pub enum SessionEvent {
     Unlock(u32),
     Stop,
 }
-
 use agent_windows::{
+    activity::log_activity_now,
     api::start_api_server,
     cloud_client::start_cloud_client,
     config::Config,
@@ -60,7 +60,7 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
     })?);
 
     // 2. Инициализация глобального логгера
-    let logs_path = Path::new(&config.paths.log_dir).join("logs");
+    let logs_path = Path::new(&config.paths.log_dir);
     init_global_logger(
         &logs_path.to_string_lossy(),
         "service",
@@ -133,7 +133,7 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
 
     log_info!("🚀 Служба запущена и готова принимать события сессий");
 
-    let db = Arc::new(AppDb::new(&config.paths.log_dir).map_err(|e| {
+    let db = Arc::new(AppDb::new(&config.paths.data_dir).map_err(|e| {
         log_error!("Критическая ошибка БД: {}", e);
         e
     })?);
@@ -361,15 +361,23 @@ async fn handle_admin_command(db: &Arc<AppDb>, cmd: AdminCommand) {
         AdminCommand::ForceUnlock => {
             log_info!("🔓 [Admin] Принудительная разблокировка");
             let _ = do_unlock_procedure(db).await;
+
+            // Ручной режим = снять любую интернет-блокировку (limit/screen_lock/manual).
+            if let Some(sid) = get_active_user_sid() {
+                if let Err(e) = agent_windows::firewall::set_block_enabled(&sid, false) {
+                    log_error!("❌ [ForceUnlock] set_block_enabled(false): {}", e);
+                }
+                let changed = db.apply_internet_block(&sid, false, "").unwrap_or(false);
+                if changed {
+                    log_activity_now(db, &sid, "internet_unblocked", "manual_unlock");
+                }
+            }
         }
 
         AdminCommand::AutoMode => {
             log_info!("🔄 [Admin] Возврат в режим 'scheduled'");
-
-            // 1. Глобальный режим
             let _ = db.set_state("control_mode", "scheduled");
 
-            // 2. Сброс manual в daily_limits + применение политики
             if let Some(sid) = get_active_user_sid() {
                 match db.return_to_scheduled(&sid) {
                     Ok(true) => log_info!("✅ [Admin] manual сброшен → scheduled"),
@@ -380,8 +388,9 @@ async fn handle_admin_command(db: &Arc<AppDb>, cmd: AdminCommand) {
                 if let Some(state) = evaluate_access(db, Some(&sid)) {
                     let _ = apply_lock_state(db, &sid, &state.policy).await;
                 }
-            } else {
-                log_info!("ℹ️ [Admin] Активный пользователь не найден");
+
+                // 🆕 Логируем смену режима
+                log_activity_now(db, &sid, "mode_changed", "auto");
             }
         }
 
@@ -449,19 +458,25 @@ async fn handle_background_tick(
         }
     }
 
-    // Применяем решение о блокировке
-    let locked_now = match apply_lock_state(db, &sid, policy).await {
-        Ok(v) => v,
-        Err(e) => {
-            log_error!("[Tick] apply_lock_state failed: {:?}", e);
-            return; // или continue
+    // 🆕 В ручном режиме НЕ трогаем состояние блокировки экрана.
+    //    Берём текущее состояние из БД (его выставил обработчик Admin-команды
+    //    или переход manual→scheduled), чтобы корректно посчитать should_credit.
+    let locked_now = if matches!(policy.mode, ControlMode::Manual { .. }) {
+        db.get_state("lock_status").ok().flatten().as_deref() == Some("true")
+    } else {
+        match apply_lock_state(db, &sid, policy).await {
+            Ok(v) => v,
+            Err(e) => {
+                log_error!("[Tick] apply_lock_state failed: {:?}", e);
+                return;
+            }
         }
     };
 
     // Счётчик: только если сессия активна, не заблокировано, и контроль не выключен
     let session_active = is_session_active(session_state_rx);
     let should_credit =
-        !matches!(policy.mode, ControlMode::Disabled) && session_active && !locked_now;
+        matches!(policy.mode, ControlMode::Scheduled) && session_active && !locked_now;
 
     if should_credit && tick_counter % 60 == 0 {
         process_screen_time_procedure(db, &sid).await;
@@ -469,11 +484,7 @@ async fn handle_background_tick(
 
     // Heartbeat каждые 5 минут (300 тиков)
     if tick_counter % 300 == 0 {
-        let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
-        let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
-        let _ = db.log_activity(&sid, "heartbeat", "service_alive", screen_time,
-            internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
-            locked_now, db.is_internet_paused(&sid).unwrap_or(false));
+        log_activity_now(db, &sid, "heartbeat", "service_alive");
     }
 }
 
@@ -600,13 +611,9 @@ async fn enforce_lock_procedure(db: &Arc<AppDb>, sid: &str, reason: &str) -> boo
     match agent_windows::session::execute_in_user_session(exe_str, &args) {
         Ok(_) => {
             log_info!("✅ Команда блокировки успешно отправлена в сессию пользователя");
-            let _ = db.set_state("lock_status", "true");
+            let _ = db.apply_lock_status(true);
             let _ = db.log_lock_event(sid, reason);
-            let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
-            let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
-            let _ = db.log_activity(sid, "screen_locked", reason, screen_time, internet_time,
-                today_limit.limit_sec, today_limit.internet_limit_sec, true,
-                db.is_internet_paused(sid).unwrap_or(false));
+            log_activity_now(db, sid, "screen_locked", reason);
             true
         }
         Err(e) => {
@@ -618,17 +625,12 @@ async fn enforce_lock_procedure(db: &Arc<AppDb>, sid: &str, reason: &str) -> boo
 }
 
 async fn do_unlock_procedure(db: &Arc<AppDb>) {
-    let _ = db.set_state("lock_status", "false");
-
+    let _ = db.apply_lock_status(false);
     let _ = std::process::Command::new("taskkill")
         .args(&["/F", "/IM", "agent-cli.exe", "/T"])
         .output();
     if let Some(sid) = get_active_user_sid() {
-        let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
-        let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
-        let _ = db.log_activity(&sid, "screen_unlocked", "", screen_time, internet_time,
-            today_limit.limit_sec, today_limit.internet_limit_sec, false,
-            db.is_internet_paused(&sid).unwrap_or(false));
+        log_activity_now(db, &sid, "screen_unlocked", "");
     }
 }
 
@@ -660,27 +662,6 @@ async fn apply_lock_state(
         is_locked
     };
 
-    if let ControlMode::Manual {
-        until: _,
-        action: _,
-    } = policy.mode
-    {
-        // Всегда разблокировать интернет при переходе в ручной режим
-        if let Some(sid) = get_active_user_sid() {
-            if let Err(e) = agent_windows::firewall::set_block_enabled(&sid, false) {
-                log_error!("[apply_lock_state] Failed to unblock internet: {}", e);
-            }
-            let _ = db.set_internet_paused(&sid, false, "manual");
-            let (screen_time, internet_time) = db.get_today_usage(&sid).unwrap_or((0, 0));
-            let today_limit = db.ensure_today_limit(&sid).unwrap_or_default();
-            let _ = db.log_activity(&sid, "internet_unblocked", "manual_mode", screen_time,
-                internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
-                screen_locked, false);
-        }
-
-        return Ok(screen_locked);
-    }
-
     // ===== Блокировка интернета по лимиту =====
     let is_internet_paused = db.is_internet_paused(sid).unwrap_or(false);
     let source = db.get_internet_paused_source(sid).unwrap_or_default();
@@ -695,14 +676,11 @@ async fn apply_lock_state(
         match agent_windows::firewall::ensure_block_rule(sid) {
             Ok(_) => match agent_windows::firewall::set_block_enabled(sid, true) {
                 Ok(_) => {
-                    let _ = db.set_internet_paused(sid, true, "limit");
-                    let _ = db.set_state("internet_blocked", "true");
+                    let changed = db.apply_internet_block(sid, true, "limit").unwrap_or(false);
                     log_info!("✅ [Lock] Интернет заблокирован (по лимиту)");
-                    let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
-                    let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
-                    let _ = db.log_activity(sid, "internet_blocked", "limit_exceeded", screen_time,
-                        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
-                        screen_locked, true);
+                    if changed {
+                        log_activity_now(db, sid, "internet_blocked", "limit_exceeded");
+                    }
                 }
                 Err(e) => log_error!("❌ [Lock] set_block_enabled(true): {}", e),
             },
@@ -714,8 +692,10 @@ async fn apply_lock_state(
         if let Err(e) = agent_windows::firewall::set_block_enabled(sid, false) {
             log_error!("❌ [Lock] set_block_enabled(false): {}", e);
         }
-        let _ = db.set_internet_paused(sid, false, "");
-        let _ = db.set_state("internet_blocked", "false");
+        let changed = db.apply_internet_block(sid, false, "").unwrap_or(false);
+        if changed {
+            log_activity_now(db, sid, "internet_unblocked", "limit_restored");
+        }
     }
 
     // ===== 🆕 Блокировка интернета при блокировке экрана =====
@@ -735,13 +715,12 @@ async fn apply_lock_state(
         match agent_windows::firewall::ensure_block_rule(sid) {
             Ok(_) => match agent_windows::firewall::set_block_enabled(sid, true) {
                 Ok(_) => {
-                    let _ = db.set_internet_paused(sid, true, "screen_lock");
-                    let _ = db.set_state("internet_blocked", "true");
-                    let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
-                    let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
-                    let _ = db.log_activity(sid, "internet_blocked", "screen_lock", screen_time,
-                        internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
-                        true, true);
+                    let changed = db
+                        .apply_internet_block(sid, true, "screen_lock")
+                        .unwrap_or(false);
+                    if changed {
+                        log_activity_now(db, sid, "internet_blocked", "screen_lock");
+                    }
                 }
                 Err(e) => log_error!("❌ [Lock] screen_lock set_block_enabled(true): {}", e),
             },
@@ -752,13 +731,10 @@ async fn apply_lock_state(
         if let Err(e) = agent_windows::firewall::set_block_enabled(sid, false) {
             log_error!("❌ [Lock] screen_lock set_block_enabled(false): {}", e);
         }
-        let _ = db.set_internet_paused(sid, false, "");
-        let _ = db.set_state("internet_blocked", "false");
-        let (screen_time, internet_time) = db.get_today_usage(sid).unwrap_or((0, 0));
-        let today_limit = db.ensure_today_limit(sid).unwrap_or_default();
-        let _ = db.log_activity(sid, "internet_unblocked", "screen_unlock", screen_time,
-            internet_time, today_limit.limit_sec, today_limit.internet_limit_sec,
-            false, false);
+        let changed = db.apply_internet_block(sid, false, "").unwrap_or(false);
+        if changed {
+            log_activity_now(db, sid, "internet_unblocked", "screen_unlock");
+        }
     }
 
     Ok(screen_locked)
@@ -1071,7 +1047,7 @@ async fn reconcile_lock_state_on_startup(db: &Arc<AppDb>) -> bool {
         log_info!(
             "♻️ [Startup] БД считала lock_status=true, но agent-cli убит — сбрасываю в false"
         );
-        let _ = db.set_state("lock_status", "false");
+        let _ = db.apply_lock_status(false);
     }
 
     // Шаг 3. Если интернет был заблокирован «из-за лока экрана» — снимаем,
@@ -1087,8 +1063,7 @@ async fn reconcile_lock_state_on_startup(db: &Arc<AppDb>) -> bool {
             if let Err(e) = agent_windows::firewall::set_block_enabled(&sid, false) {
                 log_error!("❌ [Startup] set_block_enabled(false): {}", e);
             }
-            let _ = db.set_internet_paused(&sid, false, "");
-            let _ = db.set_state("internet_blocked", "false");
+            let _ = db.apply_internet_block(&sid, false, "");
         }
 
         // Шаг 4. Применяем политику к реальности.

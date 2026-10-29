@@ -7,11 +7,11 @@ import { ScheduleState } from './state-schedule.js';
 import { SettingsState } from './state-settings.js';
 import { LogsState } from './state-logs.js';
 import { ManualState } from './state-manual.js';
+import { ActivityState } from './state-activity.js';
 import { FormatHelpers } from './format.js';
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
-        // Собираем все стейты
         ...AuthState(),
         ...StatusState(),
         ...DefaultsState(),
@@ -21,15 +21,33 @@ document.addEventListener('alpine:init', () => {
         ...SettingsState(),
         ...LogsState(),
         ...ManualState(),
+        ...ActivityState(),
         ...FormatHelpers(),
 
-        // Общие UI-поля (те, что были в app.js)
-        tab: 'status',
+        tab: localStorage.getItem('activeTab') || 'status',
+
         statusMsg: '',
         error: '',
         savingToday: false,
         savingSchedule: false,
         menuOpen: false,
+
+        async loadData() {
+            await this.loadGlobal();
+            await this.loadSettings();
+
+            // loadUsers теперь сам выберет нужного пользователя (из localStorage или первого)
+            await this.loadUsers();
+            await this.loadLogDates();
+
+            // 🆕 Загружаем данные для выбранного пользователя
+            if (this.selectedUser) {
+                await this.loadUserData();
+                this.initActivity();
+            }
+
+            this.startAutoRefresh();
+        },
 
         showStatus(msg) {
             this.statusMsg = msg;
@@ -38,13 +56,20 @@ document.addEventListener('alpine:init', () => {
 
         switchTab(newTab) {
             this.tab = newTab;
+            localStorage.setItem('activeTab', newTab);
+
             if (newTab === 'users' && this.selectedUser) {
                 this.loadUserData();
+                this.initActivity();
             }
         },
 
         switchServer() {
             window.history.back();
+        },
+
+        goToUsersTab() {
+            this.switchTab('users');
         }
     }));
 });

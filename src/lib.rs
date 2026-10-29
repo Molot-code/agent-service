@@ -1,6 +1,7 @@
 pub mod types;
 pub use types::*;
 
+pub mod activity;
 pub mod api;
 pub mod cloud_client;
 pub mod config;

@@ -20,7 +20,12 @@ pub fn init_api_token(db: &AppDb) -> Option<String> {
         Ok(_) => {
             let token = format!(
                 "agent_{}",
-                uuid::Uuid::new_v4().simple().to_string().chars().take(8).collect::<String>()
+                uuid::Uuid::new_v4()
+                    .simple()
+                    .to_string()
+                    .chars()
+                    .take(8)
+                    .collect::<String>()
             );
             match db.set_setting("api_token", &token) {
                 Ok(_) => {
@@ -40,8 +45,8 @@ pub fn init_api_token(db: &AppDb) -> Option<String> {
     }
 }
 
-/// Читает/создаёт tray_token, пишет его в `log_dir/tray_token.txt`.
-pub fn init_tray_token(db: &AppDb, log_dir: &str) -> Option<String> {
+/// Читает/создаёт tray_token, пишет его в `data_dir/tray_token.txt`.
+pub fn init_tray_token(db: &AppDb, data_dir: &str) -> Option<String> {
     let token = match db.get_setting("tray_token") {
         Ok(Some(t)) if !t.is_empty() => t,
         _ => {
@@ -55,7 +60,7 @@ pub fn init_tray_token(db: &AppDb, log_dir: &str) -> Option<String> {
         }
     };
 
-    let path = Path::new(log_dir).join("tray_token.txt");
+    let path = Path::new(data_dir).join("tray_token.txt");
     if let Err(e) = std::fs::write(&path, &token) {
         log_error!("[device] не удалось записать tray_token.txt: {:?}", e);
     }
