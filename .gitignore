@@ -1,8 +1,4 @@
 /target
 node_modules/
-installer/output/ParentalControlSetup.exe
-static/app.min.js
-static/tailwind.css
-static/app.min.js.map
-static/app.min.js
-static/cdn-collapse.min.js
+installer/output/
+web/static/
