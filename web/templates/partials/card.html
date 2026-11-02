@@ -12,17 +12,17 @@
       - padding: string — отступы карточки
 
     Использование (статика):
-        {% call card::render("📊 Заголовок", "border-l-green-500") %}
+        call card::render("📊 Заголовок", "border-l-green-500")
             ... содержимое ...
-        {% endcall %}
+        endcall
 
     Использование (динамика):
-        {% call card::render_dynamic("📊 Заголовок", "{
+        call card::render_dynamic("📊 Заголовок", "{
             'border-green-500': global.is_active,
             'border-red-500': global.is_locked
-        }") %}
+        }")
             ... содержимое ...
-        {% endcall %}
+        endcall
 #}
 
 {% macro render(title='', border='border-l-gray-300', padding='p-3 sm:p-4 md:p-6') %}

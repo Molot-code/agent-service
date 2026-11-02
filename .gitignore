@@ -2,3 +2,4 @@
 node_modules/
 installer/output/
 web/static/
+.task/checksum/dev-watch

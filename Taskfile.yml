@@ -1,29 +1,103 @@
 version: '3'
 
+# Имя службы, используется единообразно во всех задачах
+vars:
+  SERVICE_NAME: ParentalControlSvc
+  INSTALL_DIR: 'C:\Program Files\ParentalControl'
+  INNO_SETUP: 'C:\Program Files\Inno Setup 7\ISCC.exe'
+
 tasks:
+  # ---------- Сборка фронтенда ----------
   styles:
     desc: "Сборка и минификация стилей Tailwind CSS"
     cmds:
-      - npx tailwindcss -i ./web/src/input.css -o ./web/static/tailwind.css --minify
+      - pnpm exec tailwindcss -i ./web/src/input.css -o ./web/static/tailwind.css --minify
 
   js:
     desc: "Сборка и минификация JS в один бандл"
     cmds:
-      - npx esbuild ./web/src/app.js --bundle --minify --sourcemap --outfile=./web/static/app.min.js
+      - pnpm run lint
+      - pnpm exec esbuild ./web/src/app.js --bundle --minify --sourcemap --outfile=./web/static/app.min.js
 
+  # ---------- Сборка бэкенда ----------
   backend:
     desc: "Компиляция Rust бинарника в режиме Release (после сборки фронта)"
     deps: [styles, js]
     cmds:
       - cargo build --release
+    sources:
+      - 'src/**/*.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+    generates:
+      - 'target/release/ParentalControlSvc.exe'
 
+  # ---------- Производственный установщик (без изменений) ----------
   installer:
-    desc: "Создание инсталлятора через Inno Setup 7"
+    desc: "Создание инсталлятора через Inno Setup"
     deps: [backend]
     cmds:
-      - '"C:\Program Files\Inno Setup 7\ISCC.exe" "{{.ROOT_DIR}}\installer\setup.iss"'
+      - '"{{.INNO_SETUP}}" "{{.ROOT_DIR}}\installer\setup.iss"'
 
   default:
-    desc: "Полный цикл сборки (команда по умолчанию)"
+    desc: "Полный цикл сборки"
     cmds:
       - task: installer
+
+  # ---------- Задачи для отладки ----------
+  dev-stop:
+    desc: "Остановка службы и ожидание полной остановки"
+    internal: true
+    cmds:
+      - cmd: 'sc stop "{{.SERVICE_NAME}}"'
+        ignore_error: true
+      # sc stop асинхронен, используем PowerShell для опроса Stopped
+      - powershell -Command "while ((Get-Service '{{.SERVICE_NAME}}' -ErrorAction SilentlyContinue).Status -ne 'Stopped') { Start-Sleep -Milliseconds 300 }"
+
+  dev-copy:
+    desc: "Копирование фронтенд-файлов в каталог установки"
+    internal: true
+    cmds:
+      - cmd: 'cmd /c copy /Y ".\web\static\tailwind.css" "{{.INSTALL_DIR}}\static\tailwind.css"'
+      - cmd: 'cmd /c copy /Y ".\web\static\app.min.js" "{{.INSTALL_DIR}}\static\app.min.js"'
+      - cmd: 'cmd /c xcopy /E /I /Y ".\web\templates\*" "{{.INSTALL_DIR}}\templates"'
+
+  dev-start:
+    desc: "Запуск службы"
+    internal: true
+    cmds:
+      - cmd: 'sc start "{{.SERVICE_NAME}}"'
+
+  dev:
+    desc: "Отладочная сборка: только фронтенд + перезапуск службы (без установщика)"
+    deps: [styles, js]
+    cmds:
+      # Если изменили только фронтенд, закомментируйте эту строку для скорости
+      - task: backend
+      - task: dev-stop
+      - task: dev-copy
+      - task: dev-start
+
+  dev-frontend:
+    desc: "Быстрая отладка: только фронтенд (Rust не пересобирается)"
+    deps: [styles, js]
+    cmds:
+      - task: dev-stop
+      - task: dev-copy
+      - task: dev-start
+
+  # ---------- Автоматическое отслеживание (опционально) ----------
+  dev-watch:
+    desc: "Мониторинг: автоматическая пересборка и перезапуск службы при изменении файлов фронтенда"
+    watch: true
+    method: none
+    sources:
+      - 'web/src/**/*.css'
+      - 'web/src/**/*.js'
+      - 'web/templates/**/*.html'
+    cmds:
+      - task: styles
+      - task: js
+      - task: dev-stop
+      - task: dev-copy
+      - task: dev-start

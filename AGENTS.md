@@ -6,7 +6,7 @@
 ## Стек
 
 Rust (2021, Windows x64): `axum` 0.8, `rusqlite` (SQLite WAL), `minijinja`, `tokio`, `tower-http`.
-Фронт: Alpine.js + Tailwind v4, сборка через `npx esbuild` / `npx tailwindcss` (без npm-проекта).
+Фронт: Alpine.js + Tailwind v4, сборка через `pnpm exec esbuild` / `pnpm exec tailwindcss` (есть `package.json`).
 Три бинарника в `src/bin/`: `service.rs`, `cli.rs`, `tray.rs`. Общий крейт — `src/lib.rs`.
 
 ## Структура корня
@@ -18,6 +18,8 @@ Rust (2021, Windows x64): `axum` 0.8, `rusqlite` (SQLite WAL), `minijinja`, `tok
 | `installer/` | Inno Setup (`setup.iss`). |
 | `docs/` | `ARCHITECTURE.md`, `API.md`. |
 | `Taskfile.yml`, `package.json` | Сборка фронта. |
+| `eslint.config.js` | Конфигурация линтера (ESLint v9 flat config). |
+| `devwatch.ps1` | Скрипт для автозапуска мониторинга (не критичен для сборки). |
 | `target/`, `node_modules/` | Артефакты, не трогать. |
 
 ## Структура `src/` (Rust)
@@ -91,6 +93,15 @@ web/templates/ ← HTML (рендерит minijinja)
 - `input.css` — единственный entry Tailwind. Кастомные стили/`@source`/`@theme` — только здесь.
 - В шаблонах подключать только `/app.min.js`, `/tailwind.css`, локальные `cdn*.js`. Остальное — через бандл.
 - Не хардкодить дефолты — они с `/api/defaults`.
+- **Комментарии в шаблонах**: внутри `{# ... #}` не должно быть тегов `{% ... %}`, иначе парсер ESLint (`@html-eslint/parser`) падает с ошибкой. Если нужно показать пример — используйте текст без фигурных скобок или экранируйте.
+
+## Линтинг и проверка JS
+
+- ESLint v9 (flat config) + `@html-eslint/parser` (пресет `NUNJUCKS` для совместимости с MiniJinja) + `eslint-plugin-alpinejs`.
+- **Запуск**: `pnpm run lint` (только проверка), `pnpm run lint:fix` (автоисправление).
+- Плагин Alpine проверяет только одно правило: `alpinejs/no-raw-dom-access` (запрет прямого доступа к DOM). Он **не** валидирует синтаксис `x-data`/`x-on` и не заменяет TypeScript.
+- Синтаксические ошибки JS (например, `inport`) ловит **esbuild** на этапе сборки, а не ESLint.
+- Для поиска дублей и неиспользуемого кода используйте отдельные CLI-инструменты (`jscpd`, `dead-code-hunter`), не встроенные в `Taskfile.yml`.
 
 ## Правила «куда лезть»
 
@@ -113,6 +124,7 @@ web/templates/ ← HTML (рендерит minijinja)
 | Логи (чтение) | `src/api/handlers/web.rs::list_log_dates`, `get_logs` |
 | Стили (Tailwind) | `web/src/input.css` → `web/static/tailwind.css` |
 | Сборка бандла | `web/src/app.js` → `web/static/app.min.js` |
+| Линтинг JS/HTML | `eslint.config.js`, `pnpm run lint` |
 
 ## Контракты API (не ломать без согласования)
 
@@ -148,13 +160,16 @@ web/templates/ ← HTML (рендерит minijinja)
 - **Не класть `input.css` в `src/` (Rust)** — его место `web/src/`.
 - **Не добавлять второй aggregator (`entry.js`)** — точка входа одна: `web/src/app.js`.
 - **Не подключать скрипты/стили в шаблонах напрямую** (кроме `/app.min.js`, `/tailwind.css`, `cdn*.js`).
+- **Не использовать `{% ... %}` внутри `{# ... #}` в шаблонах** — ломает парсер ESLint.
 
 ## Сборка и запуск
 
 - `cargo build` — быстрая проверка; `cargo build --release` — прод.
-- `task styles` — `web/src/input.css` → `web/static/tailwind.css`.
-- `task js` — `web/src/app.js` → `web/static/app.min.js`.
+- `task styles` — `web/src/input.css` → `web/static/tailwind.css` (через `pnpm exec tailwindcss`).
+- `task js` — `web/src/app.js` → `web/static/app.min.js` (через `pnpm exec esbuild`).
+- `task dev-frontend` — сборка фронта + копирование в `C:\Program Files\ParentalControl` + перезапуск службы (без установщика). **Основная команда для отладки UI.**
 - `task` — полный пайплайн + Inno Setup. `backend` зависит от `styles`/`js`; `installer` использует `{{.ROOT_DIR}}` (запускать можно из любой подпапки).
+- `pnpm run lint` — проверка JS и HTML через ESLint.
 - Логи: `C:\ProgramData\ParentalControl\logs\YYYY-MM-DD\{service|agent_cli|agent_tray|debug|error}.log`.
 - БД и токены: `C:\ProgramData\ParentalControl\{data.db|api_token.txt|tray_token.txt}`.
 
