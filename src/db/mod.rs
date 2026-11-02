@@ -1,4 +1,5 @@
 mod impls;
+mod migrations;
 mod schema;
 
 use std::{path::Path, sync::Mutex};

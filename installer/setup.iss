@@ -34,9 +34,9 @@ Source: "..\target\release\agent-tray.exe";         DestDir: "{app}"; Flags: ign
 ; 2. Конфиг
 Source: "..\config.toml"; DestDir: "{app}"; Flags: ignoreversion
 
-; 3. Статика и шаблоны
-Source: "..\static\*";    DestDir: "{app}\static";    Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs createallsubdirs
+; 3. Статика и шаблоны (новая структура: web/static, web/templates)
+Source: "..\web\static\*";    DestDir: "{app}\static";    Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\web\templates\*"; DestDir: "{app}\templates"; Flags: recursesubdirs createallsubdirs
 
 [Dirs]
 ; Создаём папку в ProgramData с полными правами для юзеров

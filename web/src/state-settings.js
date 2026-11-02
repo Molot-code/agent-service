@@ -15,11 +15,15 @@ export const SettingsState = () => ({
     groupedSettings() {
         const map = new Map();
         const titles = {
+            general: '⚙️ Общие',
             security: '🔐 Безопасность',
             notifications: '🔔 Уведомления',
             timing: '⏱ Время',
-            general: '⚙️ Общие',
+            control: '🎛 Управление',
+            scheduler: '🕒 Планировщик',
+            logs: '📜 Логи',
         };
+        const order = ['general', 'security', 'notifications', 'timing', 'control', 'scheduler', 'logs'];
 
         this.settings.forEach(s => {
             if (s.category === 'internal') return;
@@ -33,7 +37,11 @@ export const SettingsState = () => ({
             map.get(s.category).items.push(s);
         });
 
-        return Array.from(map.values());
+        return Array.from(map.values()).sort((a, b) => {
+            const ia = order.indexOf(a.name);
+            const ib = order.indexOf(b.name);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
     },
 
     enumOptions(key) {
@@ -41,6 +49,13 @@ export const SettingsState = () => ({
             agent_mode: [
                 { value: 'local', label: 'Local — только локально' },
                 { value: 'hybrid', label: 'Hybrid — локально + облако' },
+                { value: 'cloud', label: 'Cloud — только облако' },
+            ],
+            log_level: [
+                { value: 'debug', label: 'Debug — всё' },
+                { value: 'info', label: 'Info — обычные события' },
+                { value: 'warn', label: 'Warn — предупреждения' },
+                { value: 'error', label: 'Error — только ошибки' },
             ],
         };
         return map[key] || [];

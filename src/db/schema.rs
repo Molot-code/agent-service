@@ -113,24 +113,6 @@ pub fn apply(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_activity_log_time ON activity_log(created_at);
     "#)?;
 
-    // Добавляем колонку state для существующих БД (если её ещё нет)
-    ensure_column(conn, "activity_log", "state", "TEXT DEFAULT ''")?;
-
-    ensure_column(conn, "users", "is_active", "INTEGER NOT NULL DEFAULT 1")
-}
-
-/// Идемпотентно добавляет колонку, если её нет (SQLite не умеет ADD COLUMN IF NOT EXISTS).
-fn ensure_column(conn: &Connection, table: &str, column: &str, decl: &str) -> Result<()> {
-    let has = {
-        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
-        let names: Vec<String> = stmt
-            .query_map([], |r| r.get::<_, String>(1))?
-            .filter_map(Result::ok)
-            .collect();
-        names.iter().any(|n| n == column)
-    };
-    if !has {
-        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
-    }
-    Ok(())
+    // Миграции для существующих БД (отдельный модуль, отслеживаются по user_version)
+    crate::db::migrations::apply(conn)
 }

@@ -1,3 +1,12 @@
+// web/src/app.js
+// Точка входа esbuild. Единственное место, где перечислены все стейты.
+// Сборка: task js → web/static/app.min.js
+// Новый state-*.js добавлять сюда (named import + ...State() в мерж).
+
+import './api.js';   // side-effect: гарантирует загрузку apiGet/apiPost до стейтов
+
+import { FormatHelpers } from './format.js';
+
 import { AuthState } from './state-auth.js';
 import { StatusState } from './state-status.js';
 import { DefaultsState } from './state-defaults.js';
@@ -8,7 +17,6 @@ import { SettingsState } from './state-settings.js';
 import { LogsState } from './state-logs.js';
 import { ManualState } from './state-manual.js';
 import { ActivityState } from './state-activity.js';
-import { FormatHelpers } from './format.js';
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
@@ -40,7 +48,7 @@ document.addEventListener('alpine:init', () => {
             await this.loadUsers();
             await this.loadLogDates();
 
-            // 🆕 Загружаем данные для выбранного пользователя
+            // Загружаем данные для выбранного пользователя
             if (this.selectedUser) {
                 await this.loadUserData();
                 this.initActivity();

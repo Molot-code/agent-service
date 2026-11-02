@@ -1,0 +1,110 @@
+{# partials/tabs/global.html #}
+{% macro global_settings() %}
+<div x-show="tab === 'global'" class="space-y-3" x-transition>
+    <template x-for="cat in groupedSettings()" :key="cat.name">
+        <div class="bg-white rounded-lg shadow border-l-4 p-2.5 sm:p-3 md:p-4"
+             :class="{
+                 'border-l-gray-400': cat.name === 'general',
+                 'border-l-yellow-500': cat.name === 'notifications',
+                 'border-l-red-500': cat.name === 'security',
+                 'border-l-blue-500': cat.name === 'timing',
+                 'border-l-purple-500': cat.name === 'control',
+                 'border-l-green-500': cat.name === 'scheduler',
+                 'border-l-indigo-500': cat.name === 'logs',
+             }">
+
+            <h2 class="text-sm sm:text-base font-bold text-gray-800 mb-2"
+                x-text="cat.title"></h2>
+
+            <div class="space-y-2.5">
+                <template x-for="s in cat.items" :key="s.key">
+                    <div>
+                        {# ---------- BOOL: одна строка «метка — тумблер» ---------- #}
+                        <template x-if="s.value_type === 'bool'">
+                            <label class="flex items-center justify-between gap-3 cursor-pointer py-0.5">
+                                <span class="text-sm font-medium text-gray-700 leading-tight"
+                                      x-text="s.label"></span>
+                                <input type="checkbox"
+                                    :checked="s.value === 'true'"
+                                    @change="s.value = $event.target.checked ? 'true' : 'false'; saveSetting(s)"
+                                    class="shrink-0 w-5 h-5 rounded border-gray-300 text-blue-600
+                                            focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                            </label>
+                        </template>
+
+                        {# ---------- INT: компактный input + метка справа ---------- #}
+                        <template x-if="s.value_type === 'int'">
+                            <div class="flex items-center gap-3">
+                                <input type="number" x-model="s.value"
+                                    @change="saveSetting(s)"
+                                    class="w-24 px-2 py-1 border border-gray-300 rounded text-sm
+                                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                            transition">
+                                <label class="flex-1 text-sm font-medium text-gray-700 leading-tight"
+                                       x-text="s.label"></label>
+                            </div>
+                        </template>
+
+                        {# ---------- Остальные: метка над полем ---------- #}
+                        <template x-if="s.value_type !== 'bool' && s.value_type !== 'int'">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 mb-1"
+                                    x-text="s.label"></label>
+
+                                {# ---------- STRING ---------- #}
+                                <template x-if="s.value_type === 'string'">
+                                    <input type="text" x-model="s.value"
+                                        @change="saveSetting(s)"
+                                        class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm
+                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                                transition">
+                                </template>
+
+                                {# ---------- PASSWORD ---------- #}
+                                <template x-if="s.value_type === 'password'">
+                                    <input type="password" x-model="s.value"
+                                        @change="saveSetting(s)"
+                                        placeholder="Оставьте пустым, чтобы не менять"
+                                        class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm
+                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                                transition">
+                                </template>
+
+                                {# ---------- MULTILINE ---------- #}
+                                <template x-if="s.value_type === 'multiline'">
+                                    <textarea x-model="s.value" rows="2"
+                                            @blur="saveSetting(s)"
+                                            class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm
+                                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                                    transition resize-y"></textarea>
+                                </template>
+
+                                {# ---------- ENUM ---------- #}
+                                <template x-if="s.value_type === 'enum'">
+                                    <select x-model="s.value"
+                                            @change="saveSetting(s)"
+                                            class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm
+                                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                                transition bg-white">
+                                        <template x-for="opt in enumOptions(s.key)" :key="opt.value">
+                                            <option :value="opt.value" x-text="opt.label"></option>
+                                        </template>
+                                    </select>
+                                </template>
+                            </div>
+                        </template>
+
+                        {# Описание — только при наведении (на тач-устройствах недоступно) #}
+                        <p x-show="s.description"
+                           class="hidden sm:block text-xs text-gray-400 mt-0.5 leading-snug"
+                           x-text="s.description"></p>
+
+                        {# Лёгкий индикатор «сохранено» рядом с полем #}
+                        <p x-show="s.__saving" class="text-xs text-gray-400 mt-0.5">⏳ Сохранение…</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+</div>
+{% endmacro %}

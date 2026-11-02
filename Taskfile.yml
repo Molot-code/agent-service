@@ -4,23 +4,24 @@ tasks:
   styles:
     desc: "Сборка и минификация стилей Tailwind CSS"
     cmds:
-      - npx tailwindcss -i ./src/input.css -o ./static/tailwind.css --minify
+      - npx tailwindcss -i ./web/src/input.css -o ./web/static/tailwind.css --minify
 
   js:
     desc: "Сборка и минификация JS в один бандл"
     cmds:
-      - npx esbuild ./static/js/app.js --bundle --minify --outfile=./static/app.min.js
+      - npx esbuild ./web/src/app.js --bundle --minify --sourcemap --outfile=./web/static/app.min.js
 
   backend:
-    desc: "Компиляция Rust бинарника в режиме Release"
+    desc: "Компиляция Rust бинарника в режиме Release (после сборки фронта)"
+    deps: [styles, js]
     cmds:
       - cargo build --release
 
   installer:
     desc: "Создание инсталлятора через Inno Setup 7"
-    deps: [styles, js, backend]
+    deps: [backend]
     cmds:
-      - '"C:\Program Files\Inno Setup 7\ISCC.exe" "{{.USER_WORKING_DIR}}\installer\setup.iss"'
+      - '"C:\Program Files\Inno Setup 7\ISCC.exe" "{{.ROOT_DIR}}\installer\setup.iss"'
 
   default:
     desc: "Полный цикл сборки (команда по умолчанию)"
