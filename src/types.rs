@@ -36,7 +36,7 @@ pub enum AdminCommand {
 /// Режим контроля для пользователя на текущий момент.
 /// ЕДИНСТВЕННЫЙ источник правды для Service.rs о том,
 /// как обрабатывать блокировку и счётчик.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ControlMode {
     /// Контроль выключен для пользователя.
     /// Service.rs: снять блокировку, счётчик не считать.
@@ -47,9 +47,12 @@ pub enum ControlMode {
     ///   - ManualLock: держать блокировку (если снята — ставить снова).
     ///   - ManualUnlock: держать разблокировку (если стоит — снимать).
     /// Расписание и лимиты игнорируются.
+    /// `reason` — причина: "" (ручной режим из UI) или "not_accepted"
+    /// (ежедневное подтверждение не получено).
     Manual {
         until: NaiveDateTime,
         action: ManualAction,
+        reason: String,
     },
 
     /// Обычная логика: лимит + расписание.
@@ -72,8 +75,8 @@ pub struct TodayLimit {
     pub extra_internet_time_min: i32,
     pub start_time: String,
     pub end_time: String,
-    pub mode: String,         // 🆕 "scheduled" | "manual"
-    pub manual_until: String, // 🆕 "" | "YYYY-MM-DD HH:MM:SS"
+    pub mode: String,         // "scheduled" | "manual"
+    pub manual_until: String, // "" | "YYYY-MM-DD HH:MM:SS"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -65,7 +65,10 @@ pub fn check_screen_time_policy(
             screen_time_sec: 0,
             limit_sec: 0,
             in_schedule: true,
-            time_to_event: TimeToEvent::LockIn { minutes: 0, reason: String::new() },
+            time_to_event: TimeToEvent::LockIn {
+                minutes: 0,
+                reason: String::new(),
+            },
             internet_time_sec: 0,
             internet_limit_sec: 0,
             internet_exceeded: false,
@@ -99,7 +102,10 @@ pub fn check_screen_time_policy(
         screen_time_sec: screen_time,
         limit_sec: effective_limit_sec,
         in_schedule,
-        time_to_event: TimeToEvent::LockIn { minutes: 0, reason: String::new() },
+        time_to_event: TimeToEvent::LockIn {
+            minutes: 0,
+            reason: String::new(),
+        },
         internet_time_sec: internet_time,
         internet_limit_sec: effective_internet_limit_sec,
         internet_exceeded,
@@ -128,8 +134,14 @@ pub fn is_access_allowed(db: &AppDb, sid_opt: Option<&str>) -> bool {
 pub fn should_lock(policy: &PolicyCheckResult) -> bool {
     match policy.mode {
         ControlMode::Disabled => false,
-        ControlMode::Manual { action: ManualAction::Lock, .. } => true,
-        ControlMode::Manual { action: ManualAction::Unlock, .. } => false,
+        ControlMode::Manual {
+            action: ManualAction::Lock,
+            ..
+        } => true,
+        ControlMode::Manual {
+            action: ManualAction::Unlock,
+            ..
+        } => false,
         ControlMode::Scheduled => !policy.in_schedule || policy.is_exceeded,
     }
 }
@@ -170,23 +182,45 @@ fn calculate_time_to_event(
     now: DateTime<Local>,
 ) -> TimeToEvent {
     match policy.mode {
-        ControlMode::Disabled => TimeToEvent::LockIn { minutes: 0, reason: String::new() },
+        ControlMode::Disabled => TimeToEvent::LockIn {
+            minutes: 0,
+            reason: String::new(),
+        },
 
-        ControlMode::Manual { until, action } => {
+        ControlMode::Manual {
+            until,
+            action,
+            ref reason,
+        } => {
             let minutes = (until - now.naive_local()).num_minutes().max(0) as u32;
+            let r = if reason == "not_accepted" {
+                "not_accepted"
+            } else {
+                "manual"
+            };
             match action {
-                ManualAction::Lock => TimeToEvent::UnlockIn { minutes: minutes.min(WEEK_MINUTES), reason: "manual".into() },
-                ManualAction::Unlock => TimeToEvent::LockIn { minutes: minutes.min(WEEK_MINUTES), reason: "manual".into() },
+                ManualAction::Lock => TimeToEvent::UnlockIn {
+                    minutes: minutes.min(WEEK_MINUTES),
+                    reason: r.into(),
+                },
+                ManualAction::Unlock => TimeToEvent::LockIn {
+                    minutes: minutes.min(WEEK_MINUTES),
+                    reason: r.into(),
+                },
             }
         }
 
         ControlMode::Scheduled => {
             if is_locked {
                 let m = find_next_schedule_start(week_schedule, now);
-                TimeToEvent::UnlockIn { minutes: m.min(WEEK_MINUTES), reason: "schedule".into() }
+                TimeToEvent::UnlockIn {
+                    minutes: m.min(WEEK_MINUTES),
+                    reason: "schedule".into(),
+                }
             } else {
                 let minutes_to_limit = if policy.limit_sec > 0 {
-                    let remaining = (policy.limit_sec - policy.screen_time_sec as i32).max(0) as u32;
+                    let remaining =
+                        (policy.limit_sec - policy.screen_time_sec as i32).max(0) as u32;
                     Some(remaining / 60)
                 } else {
                     None
@@ -201,7 +235,10 @@ fn calculate_time_to_event(
                     (None, None) => (0, ""),
                 };
 
-                TimeToEvent::LockIn { minutes: m.min(WEEK_MINUTES), reason: reason.into() }
+                TimeToEvent::LockIn {
+                    minutes: m.min(WEEK_MINUTES),
+                    reason: reason.into(),
+                }
             }
         }
     }
@@ -227,14 +264,28 @@ fn read_lock_status(db: &AppDb) -> bool {
 /// Определяет `ControlMode` на основе полей `daily_limits`.
 /// Если manual_until пуст или истёк — возвращает Scheduled.
 fn parse_control_mode(today_limits: &TodayLimit) -> ControlMode {
-    let until = match NaiveDateTime::parse_from_str(&today_limits.manual_until, "%Y-%m-%d %H:%M:%S") {
+    let until = match NaiveDateTime::parse_from_str(&today_limits.manual_until, "%Y-%m-%d %H:%M:%S")
+    {
         Ok(dt) if Local::now().naive_local() < dt => dt,
         _ => return ControlMode::Scheduled,
     };
 
     match today_limits.mode.as_str() {
-        "manual_lock" => ControlMode::Manual { until, action: ManualAction::Lock },
-        "manual_unlock" => ControlMode::Manual { until, action: ManualAction::Unlock },
+        "manual_lock" => ControlMode::Manual {
+            until,
+            action: ManualAction::Lock,
+            reason: String::new(),
+        },
+        "manual_unlock" => ControlMode::Manual {
+            until,
+            action: ManualAction::Unlock,
+            reason: String::new(),
+        },
+        "not_accepted" => ControlMode::Manual {
+            until,
+            action: ManualAction::Lock,
+            reason: "not_accepted".into(),
+        },
         _ => ControlMode::Scheduled,
     }
 }
@@ -269,12 +320,18 @@ fn find_next_schedule_start(week: &[DaySchedule], now: DateTime<Local>) -> u32 {
 
     for offset in 0..7u32 {
         let target_dow = (today_dow_db + offset) % 7;
-        let Some(day) = week.iter().find(|d| d.day_of_week == target_dow as i32) else { continue };
-        let Some(start) = parse_time_to_minutes(&day.start_time) else { continue };
-        
+        let Some(day) = week.iter().find(|d| d.day_of_week == target_dow as i32) else {
+            continue;
+        };
+        let Some(start) = parse_time_to_minutes(&day.start_time) else {
+            continue;
+        };
+
         let target_date = now.date_naive() + chrono::Duration::days(offset as i64);
-        let Some(start_dt) = target_date.and_hms_opt(start / 60, start % 60, 0) else { continue };
-        
+        let Some(start_dt) = target_date.and_hms_opt(start / 60, start % 60, 0) else {
+            continue;
+        };
+
         if start_dt > now_naive {
             return (start_dt - now_naive).num_minutes().max(0) as u32;
         }

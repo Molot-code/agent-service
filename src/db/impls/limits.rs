@@ -1,9 +1,8 @@
 use chrono::{Datelike, Local};
 use rusqlite::{params, Result};
 
-use crate::types::TodayLimit;
-
 use super::super::AppDb;
+use crate::types::TodayLimit;
 
 // ---------- helpers ----------
 
@@ -89,16 +88,41 @@ impl AppDb {
         let (limit_sec, internet_limit_sec, start_time, end_time) =
             read_schedule_for_today(&conn, sid, today_dow())?;
 
+        // 3. ежедневное подтверждение: если включено — блокируем до конца дня
+        let (mode, manual_until) = if conn
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'daily_confirmation'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false)
+        {
+            let eod = Local::now().format("%Y-%m-%d 23:59:59").to_string();
+            ("not_accepted".to_string(), eod)
+        } else {
+            ("scheduled".to_string(), String::new())
+        };
+
         conn.execute(
             "INSERT INTO daily_limits
                 (user_sid, date, limit_sec, internet_limit_sec,
                  extra_time_min, extra_internet_time_min,
                  start_time, end_time, mode, manual_until)
-             VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6, 'scheduled', '')
+             VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?6, ?7, ?8)
              ON CONFLICT(user_sid, date) DO UPDATE SET
                 limit_sec = ?3, internet_limit_sec = ?4,
-                start_time = ?5, end_time = ?6",
-            params![sid, today, limit_sec, internet_limit_sec, start_time, end_time],
+                start_time = ?5, end_time = ?6, mode = ?7, manual_until = ?8",
+            params![
+                sid,
+                today,
+                limit_sec,
+                internet_limit_sec,
+                start_time,
+                end_time,
+                mode,
+                manual_until,
+            ],
         )?;
 
         Ok(TodayLimit {
@@ -108,8 +132,8 @@ impl AppDb {
             extra_internet_time_min: 0,
             start_time,
             end_time,
-            mode: "scheduled".to_string(),
-            manual_until: String::new(),
+            mode,
+            manual_until,
         })
     }
 
@@ -126,10 +150,14 @@ impl AppDb {
                 extra_time_min = ?5, extra_internet_time_min = ?6,
                 start_time = ?7, end_time = ?8",
             params![
-                sid, today(),
-                limit.limit_sec, limit.internet_limit_sec,
-                limit.extra_time_min, limit.extra_internet_time_min,
-                limit.start_time, limit.end_time
+                sid,
+                today(),
+                limit.limit_sec,
+                limit.internet_limit_sec,
+                limit.extra_time_min,
+                limit.extra_internet_time_min,
+                limit.start_time,
+                limit.end_time
             ],
         )?;
         Ok(())
@@ -161,7 +189,14 @@ impl AppDb {
                 limit_sec = ?3, internet_limit_sec = ?4,
                 start_time = ?5, end_time = ?6,
                 mode = 'scheduled', manual_until = ''",
-            params![sid, today(), limit_sec, internet_limit_sec, start_time, end_time],
+            params![
+                sid,
+                today(),
+                limit_sec,
+                internet_limit_sec,
+                start_time,
+                end_time
+            ],
         )?;
         Ok(())
     }
@@ -188,7 +223,11 @@ impl AppDb {
 
     fn mutate_extra(&self, sid: &str, kind: ExtraKind, minutes: i32, additive: bool) -> Result<()> {
         let col = kind.column();
-        let op = if additive { format!("{col} + ?3") } else { "?3".to_string() };
+        let op = if additive {
+            format!("{col} + ?3")
+        } else {
+            "?3".to_string()
+        };
         let sql = format!(
             "INSERT INTO daily_limits (user_sid, date, {col}) VALUES (?1, ?2, ?3)
              ON CONFLICT(user_sid, date) DO UPDATE SET {col} = {op}"

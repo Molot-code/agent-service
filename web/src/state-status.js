@@ -24,6 +24,7 @@ export const StatusState = () => ({
             this.global.is_locked = data.is_locked || false;
             this.global.session_locked = data.session_locked || false;
             this.global.mode = data.mode || 'scheduled';
+            console.log(data.mode);
             this.global.current_user = data.current_user || '';
             this.global.api_token = data.api_token || '';
             this.global.time_to_event = data.time_to_event ?? null;

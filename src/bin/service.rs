@@ -426,7 +426,11 @@ async fn handle_background_tick(
     // 🆕 В ручном режиме НЕ трогаем состояние блокировки экрана.
     //    Берём текущее состояние из БД (его выставил обработчик Admin-команды
     //    или переход manual→scheduled), чтобы корректно посчитать should_credit.
-    let locked_now = if matches!(policy.mode, ControlMode::Manual { .. }) {
+    //    let locked_now = if matches!(policy.mode, ControlMode::Manual { .. }) {
+    //        db.get_state("lock_status").ok().flatten().as_deref() == Some("true")
+
+    let locked_now = if matches!(policy.mode, ControlMode::Manual { ref reason, .. } if reason.is_empty())
+    {
         db.get_state("lock_status").ok().flatten().as_deref() == Some("true")
     } else {
         match apply_lock_state(db, &sid, policy).await {
@@ -481,18 +485,13 @@ async fn process_screen_time_procedure(db: &Arc<AppDb>, sid: &str) {
 
     // Не считаем, если лимит уже исчерпан (или 0 = ноль секунд — но это не «безлимит»)
     // Если у тебя -1 = безлимит, то:
-    if effective_internet_limit >= 0 && (internet_time as i32) >= effective_internet_limit {
+    if (internet_time as i32) >= effective_internet_limit {
         return; // лимит уже превышен, не тикаем
     }
 
     if let Err(e) = db.add_internet_time(sid, 60) {
         log_error!("Ошибка записи интернет-времени: {}", e);
     }
-
-    let today_limit = match db.ensure_today_limit(sid) {
-        Ok(limit) => limit,
-        Err(_) => return,
-    };
 
     let (today_time, _) = match db.get_today_usage(sid) {
         Ok(val) => val,
