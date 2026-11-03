@@ -3,3 +3,4 @@ node_modules/
 web/static/
 .task/checksum/dev-watch
 installer
+.task/checksum/backend

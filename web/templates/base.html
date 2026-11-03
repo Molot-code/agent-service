@@ -9,6 +9,32 @@
     <script defer src="cdn.min.js"></script>
     <link href="tailwind.css" rel="stylesheet">
     <script src="app.min.js"></script>
+
+    <!-- Скрипт для принудительного сброса кэша и Service Worker внутри Tauri -->
+    <script>
+        (function() {
+            // Проверяем, что приложение запущено внутри Tauri
+            if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
+                // 1. Удаляем Service Worker, если он успел зарегистрироваться
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for (let registration of registrations) {
+                            registration.unregister();
+                        }
+                    });
+                }
+                // 2. Очищаем Cache Storage самого WebView
+                if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                        for (let name of names) {
+                            caches.delete(name);
+                        }
+                    });
+                }
+            }
+        })();
+    </script>
+
     <style>
         button, a { touch-action: manipulation; }
         .pin-input { letter-spacing: 0.5em; text-align: center; font-size: 1.5rem; }
