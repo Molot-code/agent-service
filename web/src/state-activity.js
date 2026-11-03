@@ -7,6 +7,8 @@ function getLocalToday() {
 }
 
 export const ActivityState = () => ({
+    _segmentsCache: null,
+    _segmentsCacheKey: '',
     activityLog: [],
     activityLoading: false,
     showEvents: false,
@@ -19,22 +21,44 @@ export const ActivityState = () => ({
 
     // ===== Загрузка активности за выбранную дату =====
     async loadActivityLog() {
-        if (!this.selectedUser) return;
+        console.log('[activity] loadActivityLog START', {
+            t: performance.now().toFixed(0),
+            selectedUser: this.selectedUser,
+            date: this.activityDate,
+        });
+        if (!this.selectedUser) {
+            console.warn('[activity] loadActivityLog: no selectedUser, abort');
+            return;
+        }
         this.activityLoading = true;
         try {
             const res = await apiGet(
                 `/api/activity_log/${this.selectedUser}?date=${this.activityDate}`
             );
+            console.log('[activity] loadActivityLog response', {
+                t: performance.now().toFixed(0),
+                entries: res?.entries?.length,
+            });
             this.activityLog = res.entries || [];
+            console.log('[activity] activityLog assigned', {
+                t: performance.now().toFixed(0),
+                length: this.activityLog.length,
+            });
         } catch (e) {
-            console.error('Failed to load activity log:', e);
+            console.error('[activity] loadActivityLog ERROR', e);
         } finally {
             this.activityLoading = false;
+            console.log('[activity] loadActivityLog END', { t: performance.now().toFixed(0) });
         }
     },
 
     // 🆕 Вызывается при инициализации, когда пользователь загружен
     initActivity() {
+        console.log('[activity] initActivity called', {
+            t: performance.now().toFixed(0),
+            selectedUser: this.selectedUser,
+            logLength: this.activityLog?.length,
+        });
         if (this.selectedUser && this.activityLog.length === 0) {
             this.loadActivityLog();
         }
@@ -123,8 +147,13 @@ export const ActivityState = () => ({
         return 'text-gray-700 hover:bg-gray-100';
     },
 
+    _slotColorCalls: 0,
+    _slotDetailsCalls: 0,
+    _buildSegmentsCalls: 0,
+
     // ===== Отрисовка графика (слоты по 5 минут) =====
     getSlotColor(slotIndex) {
+        this._slotColorCalls++;
         const segments = this.buildActivitySegments();
         // 5 минут = 300 секунд
         const slotStart = slotIndex * 300;
@@ -149,6 +178,7 @@ export const ActivityState = () => ({
     },
 
     getSlotDetails(slotIndex) {
+        this._slotDetailsCalls++;
         const segments = this.buildActivitySegments();
         const slotStart = slotIndex * 300;
         const slotEnd = (slotIndex + 1) * 300;
@@ -197,8 +227,23 @@ export const ActivityState = () => ({
     },
 
     buildActivitySegments() {
-        if (this.activityLog.length === 0) return [];
 
+        const key = this.activityDate + '|' +
+            this.activityLog.length + '|' +
+            (this.activityLog[0]?.created_at || '') + '|' +
+            (this.activityLog[this.activityLog.length - 1]?.created_at || '');
+
+        if (this._segmentsCacheKey === key && this._segmentsCache) {
+            return this._segmentsCache;
+        }
+
+        if (this.activityLog.length === 0) {
+            this._segmentsCache = [];
+            this._segmentsCacheKey = key;
+            return [];
+        }
+
+        if (this.activityLog.length === 0) return [];
         // Начало выбранного дня в локальном времени
         const dayStart = new Date(this.activityDate + 'T00:00:00').getTime() / 1000;
         const dayEnd = dayStart + 24 * 3600;
@@ -245,7 +290,8 @@ export const ActivityState = () => ({
             }
             segments.push(currentSegment);
         }
-
+        this._segmentsCache = segments;      // ← замените `return segments;` на это
+        this._segmentsCacheKey = key;
         return segments;
     },
 

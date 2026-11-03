@@ -161,13 +161,17 @@ web/templates/ ← HTML (рендерит minijinja)
 - **Не добавлять второй aggregator (`entry.js`)** — точка входа одна: `web/src/app.js`.
 - **Не подключать скрипты/стили в шаблонах напрямую** (кроме `/app.min.js`, `/tailwind.css`, `cdn*.js`).
 - **Не использовать `{% ... %}` внутри `{# ... #}` в шаблонах** — ломает парсер ESLint.
+- После правок в `web/src/**` или `web/templates/**` запускать **`task dev-frontend`**, а не `task js` (последний не доставляет файлы и не перезапускает службу).
 
 ## Сборка и запуск
 
 - `cargo build` — быстрая проверка; `cargo build --release` — прод.
+- `cargo test template_tests` — проверка шаблонов minijinja в строгом режиме (`UndefinedBehavior::Strict`, `path_loader("web/templates")`). Ловит серверные `{{ }}` вокруг Alpine-геттеров и другие undefined-переменные. Запускать после правок в `web/templates/**`.
 - `task styles` — `web/src/input.css` → `web/static/tailwind.css` (через `pnpm exec tailwindcss`).
-- `task js` — `web/src/app.js` → `web/static/app.min.js` (через `pnpm exec esbuild`).
-- `task dev-frontend` — сборка фронта + копирование в `C:\Program Files\ParentalControl` + перезапуск службы (без установщика). **Основная команда для отладки UI.**
+- `task js` — **только сборка** `web/src/app.js` → `web/static/app.min.js` (через `pnpm exec esbuild`) + `pnpm run lint`. Не доставляет файлы и не перезапускает службу. Для проверки правок UI **не использовать**.
+- `task dev-frontend` — **основная команда после любых правок UI**: сборка фронта (`styles` + `js`) + копирование в `C:\Program Files\ParentalControl` + перезапуск службы. Без установщика и без пересборки Rust.
+- `task dev` — как `dev-frontend`, но дополнительно пересобирает Rust (`cargo build --release`). Использовать, если менялись `.rs`.
+- `task dev-watch` — watch-режим: пересборка фронта и перезапуск службы при изменениях в `web/src/**` и `web/templates/**`.
 - `task` — полный пайплайн + Inno Setup. `backend` зависит от `styles`/`js`; `installer` использует `{{.ROOT_DIR}}` (запускать можно из любой подпапки).
 - `pnpm run lint` — проверка JS и HTML через ESLint.
 - Логи: `C:\ProgramData\ParentalControl\logs\YYYY-MM-DD\{service|agent_cli|agent_tray|debug|error}.log`.
