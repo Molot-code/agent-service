@@ -141,10 +141,10 @@ export const ActivityState = () => ({
 
     _getCssClass(state) {
         if (state === 'screen_locked') return 'bg-red-500';
-        if (state === 'session_locked') return 'bg-gray-600';
+        if (state === 'session_locked') return 'bg-gray-400';
         if (state === 'no_internet') return 'bg-lime-300';
         if (state === 'active_scheduled') return 'bg-green-500';
-        if (state === 'active_manual') return 'bg-blue-500';
+        if (state === 'active_manual') return 'bg-yellow-500';
         return 'bg-gray-200';
     },
 
@@ -184,7 +184,7 @@ export const ActivityState = () => ({
         if (state === 'session_locked') return '⚫ Win+L';
         if (state === 'no_internet') return '🟢 Без интернета';
         if (state === 'active_scheduled') return '🟢 Активность (расписание)';
-        if (state === 'active_manual') return '🔵 Ручной режим';
+        if (state === 'active_manual') return '🟡 Ручной режим';
         return '⚪ Нет данных';
     },
 

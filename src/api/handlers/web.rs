@@ -236,11 +236,6 @@ pub async fn get_settings(State(state): State<AppState>) -> AppResult<Json<Vec<S
 
 pub async fn list_log_dates(State(state): State<AppState>) -> AppResult<Json<Vec<String>>> {
     let dir = Path::new(&state.config.paths.log_dir);
-    log_info!(
-        "🔍 [API] Ищу логи в папке: {:?} (существует: {})",
-        dir,
-        dir.exists()
-    );
     let mut dates: Vec<String> = std::fs::read_dir(&dir)
         .map_err(|e| AppError::Internal(format!("read logs dir: {e}")))?
         .filter_map(|e| e.ok())
