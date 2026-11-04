@@ -3,7 +3,8 @@ use serde_json::json;
 
 use super::super::{
     dto::{
-        ApiResponse, ExtraTimeRequest, ManualActionKind, ManualActionRequest, ToggleControlRequest,
+        ApiResponse, ExtraTimeRequest, ManualActionKind, ManualActionRequest,
+        ReturnToScheduledRequest, ToggleControlRequest,
     },
     util::{apply_extra, extra_response, resolve_manual_until, set_internet_blocked},
     AppState,
@@ -184,6 +185,42 @@ pub async fn toggle_user_control(
     crate::activity::log_activity_now(&state.db, &req.sid, "control_toggled", details);
 
     Ok(Json(json!({ "success": true })))
+}
+
+/// Возврат пользователя в режим «По расписанию» (дубль Auto из /api/manual_action,
+/// но по явному sid — работает и без активной сессии).
+pub async fn return_to_scheduled_for_user(
+    State(state): State<AppState>,
+    Json(req): Json<ReturnToScheduledRequest>,
+) -> AppResult<Json<ApiResponse>> {
+    if req.sid.is_empty() {
+        return Err(AppError::BadRequest("sid is required".into()));
+    }
+
+    let (mode, _manual_until) = state.db.get_today_mode(&req.sid)?;
+    if !mode.starts_with("manual") {
+        return Ok(Json(ApiResponse {
+            success: true,
+            message: "ℹ️ Пользователь уже в режиме 'По расписанию'".to_string(),
+        }));
+    }
+
+    state.db.set_today_mode(&req.sid, "scheduled", "")?;
+    if let Err(e) = do_sync_user_access(&state.db, &state.admin_cmd_tx, &req.sid).await {
+        log_error!("[return_to_scheduled_for_user] sync failed: {:?}", e);
+    }
+    state
+        .admin_cmd_tx
+        .send(AdminCommand::AutoMode)
+        .await
+        .map_err(|e| AppError::Internal(format!("send cmd failed: {e}")))?;
+
+    crate::activity::log_activity_now(&state.db, &req.sid, "mode_changed", "auto");
+
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "🤖 Режим 'По расписанию'".to_string(),
+    }))
 }
 
 pub async fn pause_internet(State(state): State<AppState>) -> AppResult<Json<ApiResponse>> {

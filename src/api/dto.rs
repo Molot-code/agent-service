@@ -113,6 +113,11 @@ pub struct ToggleControlRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ReturnToScheduledRequest {
+    pub sid: String,
+}
+
+#[derive(Deserialize)]
 pub struct ExtraTimeRequest {
     pub sid: String,
     #[serde(default)]

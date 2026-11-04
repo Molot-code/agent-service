@@ -34,6 +34,21 @@ fn main() {
 
             log_debug!("🔒 [CLI] Инициируем блокировку (grace: {}с)...", delay_sec);
 
+            // 🆕 Читаем lock_message из БД и передаём в native_lock
+            match AppDb::new(&config.paths.data_dir) {
+                Ok(db) => {
+                    if let Ok(Some(msg)) = db.get_setting("lock_message") {
+                        if !msg.is_empty() {
+                            native_lock::set_lock_message(msg);
+                            log_debug!("[CLI] lock_message загружен из БД");
+                        }
+                    }
+                }
+                Err(e) => {
+                    log_warn!("[CLI] Не удалось открыть БД для lock_message: {}", e);
+                }
+            }
+
             let _ = native_lock::lock_screen();
 
             let mut attempts = 0;
@@ -120,8 +135,8 @@ fn main() {
                 std::process::exit(2);
             };
 
-            // Открываем БД в том же log_dir, что и служба
-            let db = match AppDb::new(&config.paths.log_dir) {
+            // Открываем БД в data_dir (там же, где data.db)
+            let db = match AppDb::new(&config.paths.data_dir) {
                 Ok(db) => db,
                 Err(e) => {
                     log_error!("[CLI] check-pin: не удалось открыть БД: {}", e);

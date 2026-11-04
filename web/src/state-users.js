@@ -45,6 +45,8 @@ export const UsersState = () => ({
 
             // 1. Данные на сегодня
             this.today = {
+                mode: todayData.mode || 'scheduled',
+                manual_until: todayData.manual_until || '',
                 start_time: todayData.start_time || '08:00',
                 end_time: todayData.end_time || '20:00',
                 limit_min: Math.floor((todayData.limit_sec ?? 7200) / 60),
@@ -89,5 +91,16 @@ export const UsersState = () => ({
     async enableControlForSelectedUser() {
         if (!this.selectedUser) return;
         await this.toggleControl(this.selectedUser, true);
+    },
+
+    async returnToScheduledForUser() {
+        if (!this.selectedUser) return;
+        try {
+            const data = await apiPost('/api/users/return_to_scheduled', { sid: this.selectedUser });
+            this.showStatus(data.message || '✅ Режим «По расписанию»');
+            await this.loadUserData();
+        } catch (e) {
+            this.showStatus('❌ ' + e.message);
+        }
     },
 });

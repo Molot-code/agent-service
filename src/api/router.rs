@@ -39,6 +39,10 @@ pub fn build(static_dir: std::path::PathBuf, state: AppState) -> Router {
         .route("/api/extra_time", post(control::extra_time))
         .route("/api/set_extra_time", post(control::set_extra_time))
         .route("/api/users/toggle_control", post(control::toggle_user_control))
+        .route(
+            "/api/users/return_to_scheduled",
+            post(control::return_to_scheduled_for_user),
+        )
         .route("/api/internet/pause", post(control::pause_internet))
         .route("/api/internet/resume", post(control::resume_internet))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_admin));
