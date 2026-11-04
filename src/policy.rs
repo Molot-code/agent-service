@@ -91,8 +91,6 @@ pub fn check_screen_time_policy(
     let in_schedule = !(now_time < today_limits.start_time || now_time > today_limits.end_time);
     let is_exceeded = (screen_time as i32) >= effective_limit_sec.max(0);
 
-    log_debug!("is_exceeded: {}", is_exceeded);
-
     // 2. Определяем режим
     let mode = parse_control_mode(&today_limits);
 

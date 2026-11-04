@@ -245,14 +245,39 @@ unsafe fn extract_sid_from_token(token: HANDLE) -> Option<String> {
 
 pub fn get_active_user_sid() -> Option<String> {
     unsafe {
+        // 1. Пробуем получить токен активного пользователя через WTSQueryUserToken
         let session_id = WTSGetActiveConsoleSessionId();
-        if session_id == 0xFFFFFFFF {
-            return None;
+        if session_id != 0xFFFFFFFF {
+            let mut token = HANDLE::default();
+            if WTSQueryUserToken(session_id, &mut token).is_ok() {
+                let sid = extract_sid_from_token(token);
+                let _ = CloseHandle(token);
+                if sid.is_some() {
+                    return sid;
+                }
+            }
         }
-        let mut token = HANDLE::default();
-        WTSQueryUserToken(session_id, &mut token).ok()?;
-        let sid = extract_sid_from_token(token);
-        let _ = CloseHandle(token);
-        sid
+
+        // 2. Fallback: берём SID из токена текущего процесса
+        //    (CLI запущен в сессии пользователя через CreateProcessAsUserW)
+        get_current_process_sid()
     }
+}
+
+/// Получает SID из токена текущего процесса (fallback, когда WTSQueryUserToken недоступен)
+#[cfg(target_os = "windows")]
+unsafe fn get_current_process_sid() -> Option<String> {
+    use windows::Win32::Security::TOKEN_QUERY;
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    let mut token = HANDLE::default();
+    OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).ok()?;
+    let sid = extract_sid_from_token(token);
+    let _ = CloseHandle(token);
+    sid
+}
+
+#[cfg(not(target_os = "windows"))]
+unsafe fn get_current_process_sid() -> Option<String> {
+    None
 }

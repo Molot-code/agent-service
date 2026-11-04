@@ -1,17 +1,20 @@
 // src/bin/cli.rs
 use std::{thread, time::Duration};
 
-use agent_windows::{config::Config, db::AppDb, log_debug, log_error, log_warn, native_lock};
+use agent_windows::{
+    config::Config, db::AppDb, log_debug, log_error, log_warn, native_lock,
+    policy::evaluate_access,
+};
 
 fn main() {
     // CLI запускается из службы в сессии пользователя.
-    // Инициализируем свой логгер с source="agent_cli".
+    // Инициализируем свой логгер с source="agent_cli", уровень — из config.toml.
     let config = Config::new();
-    let logs_path = std::path::Path::new(&config.paths.log_dir).join("logs");
+    let logs_path = std::path::Path::new(&config.paths.log_dir);
     agent_windows::logger::init_global_logger(
         &logs_path.to_string_lossy(),
         "agent_cli",
-        agent_windows::logger::LogLevel::Info,
+        agent_windows::logger::LogLevel::from_str(&config.service.log_level),
         14,
     );
 
@@ -19,7 +22,7 @@ fn main() {
 
     if args.len() <= 1 {
         log_warn!(
-            "Использование: agent-cli.exe [lock <delay_sec>|unlock|lock-system|check-pin <pin>]"
+            "Использование: agent-cli.exe [lock <delay_sec>|unlock|lock-system]"
         );
         return;
     }
@@ -34,13 +37,29 @@ fn main() {
 
             log_debug!("🔒 [CLI] Инициируем блокировку (grace: {}с)...", delay_sec);
 
-            // 🆕 Читаем lock_message из БД и передаём в native_lock
+            // 🆕 Читаем lock_message из БД, подставляем {} в расчётное время и передаём в native_lock
             match AppDb::new(&config.paths.data_dir) {
                 Ok(db) => {
                     if let Ok(Some(msg)) = db.get_setting("lock_message") {
                         if !msg.is_empty() {
-                            native_lock::set_lock_message(msg);
-                            log_debug!("[CLI] lock_message загружен из БД");
+                            // Вычисляем время до следующего события через policy
+                            // evaluate_access(None) сам берёт активного пользователя
+                            let time_str = if let Some(state) = evaluate_access(&db, None) {
+                                format_time_to_event(&state.policy.time_to_event)
+                            } else {
+                                log_debug!("[CLI] evaluate_access вернул None — нет активного пользователя");
+                                String::new()
+                            };
+
+                            // Подставляем {} в шаблон сообщения
+                            let final_msg = if time_str.is_empty() {
+                                msg
+                            } else {
+                                msg.replace("{}", &time_str)
+                            };
+
+                            log_debug!("[CLI] lock_message загружен из БД: {}", final_msg);
+                            native_lock::set_lock_message(final_msg);
                         }
                     }
                 }
@@ -124,54 +143,33 @@ fn main() {
             let _ = native_lock::unlock_screen();
         }
 
-        // 🆕 Проверка PIN-кода родителя.
-        // Коды выхода:
-        //   0 — PIN верный
-        //   1 — PIN неверный
-        //   2 — ошибка (нет аргумента, БД недоступна, PIN в БД пуст)
-        "check-pin" => {
-            let Some(input_pin) = args.get(2) else {
-                log_warn!("[CLI] check-pin: не передан PIN");
-                std::process::exit(2);
-            };
-
-            // Открываем БД в data_dir (там же, где data.db)
-            let db = match AppDb::new(&config.paths.data_dir) {
-                Ok(db) => db,
-                Err(e) => {
-                    log_error!("[CLI] check-pin: не удалось открыть БД: {}", e);
-                    std::process::exit(2);
-                }
-            };
-
-            let stored_pin = match db.get_setting("admin_pin") {
-                Ok(Some(pin)) => pin,
-                Ok(None) => {
-                    log_warn!("[CLI] check-pin: PIN в БД не найден");
-                    std::process::exit(2);
-                }
-                Err(e) => {
-                    log_error!("[CLI] check-pin: ошибка чтения PIN: {}", e);
-                    std::process::exit(2);
-                }
-            };
-
-            if stored_pin.is_empty() {
-                log_warn!("[CLI] check-pin: PIN пуст (не задан)");
-                std::process::exit(2);
-            }
-
-            if input_pin == &stored_pin {
-                log_debug!("[CLI] check-pin: PIN верный");
-                std::process::exit(0);
-            } else {
-                log_debug!("[CLI] check-pin: PIN неверный");
-                std::process::exit(1);
-            }
-        }
-
         _ => {
             log_warn!("Неизвестная команда: {}", args[1]);
+        }
+    }
+}
+
+/// Форматирует TimeToEvent в человекочитаемый вид: "15ч 23мин" или "45мин"
+fn format_time_to_event(tte: &agent_windows::types::TimeToEvent) -> String {
+    match tte {
+        agent_windows::types::TimeToEvent::UnlockIn { minutes, .. } => format_minutes(*minutes),
+        agent_windows::types::TimeToEvent::LockIn { minutes, .. } => format_minutes(*minutes),
+    }
+}
+
+/// Форматирует минуты в "Xч Yмин" или "Yмин"
+fn format_minutes(minutes: u32) -> String {
+    if minutes == 0 {
+        "0 мин".to_string()
+    } else if minutes < 60 {
+        format!("{} мин", minutes)
+    } else {
+        let h = minutes / 60;
+        let m = minutes % 60;
+        if m == 0 {
+            format!("{}ч", h)
+        } else {
+            format!("{}ч {}мин", h, m)
         }
     }
 }
