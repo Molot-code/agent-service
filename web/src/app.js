@@ -17,6 +17,7 @@ import { SettingsState } from './state-settings.js';
 import { LogsState } from './state-logs.js';
 import { ManualState } from './state-manual.js';
 import { ActivityState } from './state-activity.js';
+import { RefreshState } from './state-refresh.js';
 
 document.addEventListener('alpine:init', () => {
     Alpine.data('app', () => ({
@@ -30,6 +31,7 @@ document.addEventListener('alpine:init', () => {
         ...LogsState(),
         ...ManualState(),
         ...ActivityState(),
+        ...RefreshState(),
         ...FormatHelpers(),
 
         tab: localStorage.getItem('activeTab') || 'status',

@@ -56,11 +56,6 @@ export const ActivityState = () => ({
 
     // ===== Загрузка активности за выбранную дату =====
     async loadActivityLog() {
-        console.log('[activity] loadActivityLog START', {
-            t: performance.now().toFixed(0),
-            selectedUser: this.selectedUser,
-            date: this.activityDate,
-        });
         if (!this.selectedUser) {
             console.warn('[activity] loadActivityLog: no selectedUser, abort');
             return;
@@ -70,31 +65,17 @@ export const ActivityState = () => ({
             const res = await apiGet(
                 `/api/activity_log/${this.selectedUser}?date=${this.activityDate}`
             );
-            console.log('[activity] loadActivityLog response', {
-                t: performance.now().toFixed(0),
-                entries: res?.entries?.length,
-            });
             this.activityLog = res.entries || [];
-            this.buildActivitySegments(); // 👈 ВОТ ТАК ПРАВИЛЬНО
-            console.log('[activity] activityLog assigned', {
-                t: performance.now().toFixed(0),
-                length: this.activityLog.length,
-            });
+            this.buildActivitySegments();
         } catch (e) {
             console.error('[activity] loadActivityLog ERROR', e);
         } finally {
             this.activityLoading = false;
-            console.log('[activity] loadActivityLog END', { t: performance.now().toFixed(0) });
         }
     },
 
     // 🆕 Вызывается при инициализации, когда пользователь загружен
     initActivity() {
-        console.log('[activity] initActivity called', {
-            t: performance.now().toFixed(0),
-            selectedUser: this.selectedUser,
-            logLength: this.activityLog?.length,
-        });
         if (this.selectedUser && this.activityLog.length === 0) {
             this.loadActivityLog();
         }
@@ -393,11 +374,6 @@ export const ActivityState = () => ({
                 title: this.getSegmentTitle(seg)  // сразу добавляем готовый текст
             };
         });
-
-        console.log(
-            `%c📦 Сегменты: ${result.length} (Логов: ${events.length}) за ${(performance.now() - t0).toFixed(2)} мс`,
-            'color: #e91e63; font-weight: bold;'
-        );
 
         return result;
     },

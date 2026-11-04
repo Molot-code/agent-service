@@ -5,7 +5,19 @@
 {% import "partials/tabs/logs.html" as tab_logs %}
 
 {% macro main() %}
-<div x-show="authenticated" class="mx-auto p-2 sm:p-4 max-w-4xl pb-8 sm:pb-20">
+<div x-show="authenticated" class="mx-auto p-2 sm:p-4 max-w-4xl pb-8 sm:pb-20"
+     @touchstart="onPtrTouchStart($event)" @touchmove="onPtrTouchMove($event)" @touchend="onPtrTouchEnd($event)">
+    {# Pull-to-refresh индикатор (только мобильные) #}
+    <div x-show="isMobileView() && (ptrY > 0 || ptrRefreshing)"
+         x-cloak
+         class="fixed top-0 left-1/2 z-50 -translate-x-1/2 pointer-events-none"
+         :style="{ top: (ptrY - 24) + 'px', opacity: ptrRefreshing ? 1 : Math.min(1, ptrY / 80) }">
+        <div class="w-10 h-10 rounded-full bg-white shadow-lg border flex items-center justify-center text-lg"
+             :class="ptrRefreshing ? 'animate-spin' : ''"
+             :style="ptrRefreshing ? '' : { transform: 'rotate(' + (ptrY / 80 * 180) + 'deg)' }">
+            ⬇️
+        </div>
+    </div>
     {{ header.header() }}
 
     {# Вкладки #}
