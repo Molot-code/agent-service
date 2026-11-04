@@ -194,8 +194,6 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
     let db_track = db.clone();
     let mut session_state_rx_for_loop = session_state_rx.clone();
 
-    let session_state_tx_for_loop = session_state_tx.clone();
-
     // 🆕 Синхронизация задачи в планировщике
     {
         let enabled = db
@@ -263,7 +261,7 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
                 }
                 _ = tick_interval.tick() => {
                     tick_counter += 1;
-                    handle_background_tick(&db_track, &session_state_rx_for_loop, &session_state_tx_for_loop, tick_counter, &config).await;
+                    handle_background_tick(&db_track, &session_state_rx_for_loop, tick_counter, &config).await;
                 }
                 Some(event) = session_event_rx.recv() => {
                     match event {
@@ -425,14 +423,9 @@ async fn handle_session_state_change(
 async fn handle_background_tick(
     db: &Arc<AppDb>,
     session_state_rx: &watch::Receiver<SessionState>,
-    session_state_tx: &watch::Sender<SessionState>,
     tick_counter: u64,
     _config: &Config,
 ) {
-    if tick_counter % 5 == 0 {
-        sync_active_session_state(db, session_state_tx);
-    }
-
     let Some(sid) = get_active_user_sid() else {
         return;
     };

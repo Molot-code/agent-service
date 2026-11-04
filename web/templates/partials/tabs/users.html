@@ -60,12 +60,29 @@
                         📈 Активность за <span x-text="activityDateHeader()"></span>
                     </h2>
 
-                    {# Кнопка-календарь с всплывающим date picker #}
-                    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                    {# Кнопка-календарь с навигацией по дням #}
+                    <div class="relative flex items-center gap-1" x-data="{ open: false }" @click.outside="open = false">
+                        
+                        {# Кнопка "Назад" #}
+                        <button @click="activityPrevDay()" 
+                            class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                            title="Предыдущий день">
+                            ◀
+                        </button>
+
+                        {# Сама кнопка-календарь #}
                         <button @click="open = !open"
                             class="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors">
                             <span>📅</span>
                             <span x-text="activityDateLabel()"></span>
+                        </button>
+
+                        {# Кнопка "Вперед" #}
+                        <button @click="activityNextDay()" 
+                            :disabled="activityDate >= getLocalToday()"
+                            class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded text-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Следующий день">
+                            ▶
                         </button>
 
                         {# Всплывающий календарь #}
@@ -143,6 +160,13 @@
 
                 {# График активности (288 слотов по 5 минут) #}
                 <div class="relative mt-2">
+                    {# 🆕 Окно с горизонтальной прокруткой — график масштабируется внутри #}
+                    <div class="overflow-x-auto pb-2 custom-scrollbar"
+                        style="touch-action: pan-x pan-y;"
+                        @touchstart.passive="onChartTouchStart($event)"
+                        @touchmove="onChartTouchMove($event)"
+                        @touchend="onChartTouchEnd($event)">
+                        <div :style="chartWidthStyle()" class="min-w-full">
                     {# Временная шкала сверху (каждый час) #}
                     <div class="flex mb-1">
                         <template x-for="h in 24" :key="h">
@@ -150,19 +174,12 @@
                         </template>
                     </div>
 
-                    {# Цветные блоки по 5 минут #}
-                    <div class="flex h-16 rounded overflow-hidden border border-gray-200">
-                        <template x-for="slot in 288" :key="slot">
-                            <div class="flex-1 relative group"
-                                :class="[
-                                    getSlotColor(slot - 1),
-                                    (slot - 1) % 12 === 0 ? 'border-l border-gray-400/50' : ''
-                                ]"
-                                :title="getSlotDetails(slot - 1)">
-                                {# Tooltip при наведении #}
-                                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-pre-line z-10 w-max">
-                                    <span x-text="getSlotDetails(slot - 1)"></span>
-                                </div>
+                    <div class="flex h-16 sm:h-20 rounded overflow-hidden border border-gray-200">
+                        <template x-for="seg in activitySegments" :key="seg.id || (seg.start + '-' + seg.end)">
+                            <div class="relative group"
+                                :style="`flex-grow: ${seg.end - seg.start}; flex-basis: 0%;`"
+                                :class="seg.color"
+                                :title="seg.title">
                             </div>
                         </template>
                     </div>
@@ -172,6 +189,8 @@
                         <template x-for="h in 24" :key="h">
                             <div class="flex-1 text-center text-xs text-gray-500 border-l border-gray-300" x-text="h - 1"></div>
                         </template>
+                    </div>
+                        </div>
                     </div>
                 </div>
 

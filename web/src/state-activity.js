@@ -7,17 +7,52 @@ function getLocalToday() {
 }
 
 export const ActivityState = () => ({
-    _segmentsCache: null,
-    _segmentsCacheKey: '',
     activityLog: [],
     activityLoading: false,
     showEvents: false,
+    activitySegments: [], // 👈 ВОТ ЭТО НУЖНО ДОБАВИТЬ
+    // 🆕 Зум графика активности: 1 = 100% (в ширину экрана), до 800%
+    activityChartZoom: 1,
     // ===== Выбранная дата для графика (YYYY-MM-DD) =====
     activityDate: getLocalToday(),
 
     // ===== Месяц/год для навигации в date picker =====
     activityPickerMonth: new Date().getMonth(),
     activityPickerYear: new Date().getFullYear(),
+
+
+    // 🆕 Pinch-зум графика (только мобильные)
+    _chartPinch: null, // { startDist, startZoom }
+    isMobileView() {
+        return window.matchMedia('(max-width: 767px)').matches;
+    },
+    onChartTouchStart(e) {
+        // Работаем только на мобильных и только при 2 касаниях
+        if (!this.isMobileView() || e.touches.length !== 2) return;
+        const [a, b] = e.touches;
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        this._chartPinch = {
+            startDist: Math.hypot(dx, dy) || 1,
+            startZoom: this.activityChartZoom,
+        };
+    },
+    onChartTouchMove(e) {
+        if (!this._chartPinch || e.touches.length !== 2) return;
+        // Блокируем браузерный pinch-zoom страницы
+        e.preventDefault();
+        const [a, b] = e.touches;
+        const dx = a.clientX - b.clientX;
+        const dy = a.clientY - b.clientY;
+        const dist = Math.hypot(dx, dy) || 1;
+        const ratio = dist / this._chartPinch.startDist;
+        const next = this._chartPinch.startZoom * ratio;
+        // Шаг 0.25, границы 1..8
+        this.activityChartZoom = Math.min(8, Math.max(1, Math.round(next * 4) / 4));
+    },
+    onChartTouchEnd() {
+        this._chartPinch = null;
+    },
 
     // ===== Загрузка активности за выбранную дату =====
     async loadActivityLog() {
@@ -40,6 +75,7 @@ export const ActivityState = () => ({
                 entries: res?.entries?.length,
             });
             this.activityLog = res.entries || [];
+            this.buildActivitySegments(); // 👈 ВОТ ТАК ПРАВИЛЬНО
             console.log('[activity] activityLog assigned', {
                 t: performance.now().toFixed(0),
                 length: this.activityLog.length,
@@ -70,6 +106,32 @@ export const ActivityState = () => ({
         this.loadActivityLog();
     },
 
+    // 🆕 Обертка, чтобы Alpine видел эту функцию
+    getLocalToday() {
+        return getLocalToday(); // вызывает глобальную функцию сверху файла
+    },
+
+    // Вспомогательный метод для форматирования локальной даты
+    formatLocalDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    },
+
+    activityPrevDay() {
+        const d = new Date(this.activityDate + 'T00:00:00');
+        d.setDate(d.getDate() - 1);
+        this.selectActivityDate(this.formatLocalDate(d));
+    },
+
+    activityNextDay() {
+        const d = new Date(this.activityDate + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        const nextDateStr = this.formatLocalDate(d);
+
+        // Не даем уйти в будущее
+        if (nextDateStr > this.getLocalToday()) return;
+
+        this.selectActivityDate(nextDateStr);
+    },
     // ===== Метка даты для заголовка =====
     // Для заголовка "Активность за <...>" (оставляем слово "сегодня")
     activityDateHeader() {
@@ -140,6 +202,20 @@ export const ActivityState = () => ({
         return rows;
     },
 
+    // 🆕 Зум графика
+    chartZoomIn() {
+        this.activityChartZoom = Math.min(8, +(this.activityChartZoom + 0.5).toFixed(1));
+    },
+    chartZoomOut() {
+        this.activityChartZoom = Math.max(1, +(this.activityChartZoom - 0.5).toFixed(1));
+    },
+    chartZoomReset() {
+        this.activityChartZoom = 1;
+    },
+    chartWidthStyle() {
+        return `width: ${this.activityChartZoom * 100}%`;
+    },
+
     activityDayClass(day) {
         const today = getLocalToday();
         if (day.date === this.activityDate) return 'bg-blue-500 text-white hover:bg-blue-600';
@@ -147,13 +223,8 @@ export const ActivityState = () => ({
         return 'text-gray-700 hover:bg-gray-100';
     },
 
-    _slotColorCalls: 0,
-    _slotDetailsCalls: 0,
-    _buildSegmentsCalls: 0,
-
     // ===== Отрисовка графика (слоты по 5 минут) =====
     getSlotColor(slotIndex) {
-        this._slotColorCalls++;
         const segments = this.buildActivitySegments();
         // 5 минут = 300 секунд
         const slotStart = slotIndex * 300;
@@ -178,7 +249,6 @@ export const ActivityState = () => ({
     },
 
     getSlotDetails(slotIndex) {
-        this._slotDetailsCalls++;
         const segments = this.buildActivitySegments();
         const slotStart = slotIndex * 300;
         const slotEnd = (slotIndex + 1) * 300;
@@ -227,72 +297,109 @@ export const ActivityState = () => ({
     },
 
     buildActivitySegments() {
-
-        const key = this.activityDate + '|' +
-            this.activityLog.length + '|' +
-            (this.activityLog[0]?.created_at || '') + '|' +
-            (this.activityLog[this.activityLog.length - 1]?.created_at || '');
-
-        if (this._segmentsCacheKey === key && this._segmentsCache) {
-            return this._segmentsCache;
-        }
-
-        if (this.activityLog.length === 0) {
-            this._segmentsCache = [];
-            this._segmentsCacheKey = key;
-            return [];
-        }
-
-        if (this.activityLog.length === 0) return [];
-        // Начало выбранного дня в локальном времени
-        const dayStart = new Date(this.activityDate + 'T00:00:00').getTime() / 1000;
-        const dayEnd = dayStart + 24 * 3600;
-
+        const t0 = performance.now();
         const segments = [];
-        let currentSegment = null;
 
-        // Сортируем по реальному времени UTC (используем наш парсер)
+        // 1. Если логов нет — возвращаем один серый блок на весь день
+        if (this.activityLog.length === 0) {
+            this.activitySegments = [{ start: 0, end: 86400, state: '' }];
+            return this.activitySegments;
+        }
+
+        const dayStart = new Date(this.activityDate + 'T00:00:00').getTime() / 1000;
+        const nowSec = new Date().getTime() / 1000;
+        const nowRelative = nowSec - dayStart;
+
+        // Если день в будущем — один серый блок
+        if (nowRelative < 0) {
+            this.activitySegments = [{ start: 0, end: 86400, state: '' }];
+            return this.activitySegments;
+        }
+
+        // 2. Сортируем лог по времени
         const sorted = [...this.activityLog].sort(
             (a, b) => this._parseUTC(a.created_at) - this._parseUTC(b.created_at)
         );
 
+        // 3. Преобразуем логи в массив { time, state }
+        let events = [];
         for (const entry of sorted) {
             const entryTime = this._parseUTC(entry.created_at).getTime() / 1000;
-            const time = entryTime - dayStart;
+            const timeSec = entryTime - dayStart;
+            if (timeSec >= 0 && timeSec <= 86400) {
+                events.push({ time: timeSec, state: entry.state || 'active_scheduled' });
+            }
+        }
 
-            if (time < 0) continue;
-            const clampedTime = Math.min(time, 24 * 3600);
+        if (events.length === 0) {
+            this.activitySegments = [{ start: 0, end: 86400, state: '' }];
+            return this.activitySegments;
+        }
 
-            const state = entry.state || 'active_scheduled';
+        // 4. Формируем сегменты на основе разрывов > 5 минут (300 сек)
+        const GAP = 300;
+        let segStart = 0;
+        let segState = '';
 
-            if (!currentSegment) {
-                currentSegment = { start: clampedTime, end: clampedTime, state: state };
-            } else if (state === currentSegment.state) {
-                currentSegment.end = clampedTime;
+        // 🆕 Хелпер для умного пуша (схлопывает одинаковые состояния)
+        const pushSegment = (start, end, state) => {
+            if (end <= start) return; // Игнорируем пустые
+
+            const last = segments[segments.length - 1];
+            // Если последний сегмент имеет тот же цвет и примыкает вплотную — растягиваем его
+            if (last && last.state === state && last.end === start) {
+                last.end = end;
             } else {
-                segments.push(currentSegment);
+                segments.push({ start, end, state });
+            }
+        };
 
-                if (clampedTime - currentSegment.end > 300) {
-                    segments.push({ start: currentSegment.end, end: clampedTime, state: '' });
+        for (let i = 0; i < events.length; i++) {
+            const ev = events[i];
+
+            if (ev.time - segStart > GAP) {
+                // Если разрыв большой — закрываем предыдущий сегмент
+                if (ev.time > segStart) {
+                    pushSegment(segStart, ev.time, segState);
                 }
-
-                currentSegment = { start: clampedTime, end: clampedTime, state: state };
+                segStart = ev.time;
+                segState = ev.state;
+            } else {
+                // Если разрыв маленький, а состояние до этого было пустым — задаем его
+                if (segState === '') {
+                    segState = ev.state;
+                }
             }
         }
 
-        if (currentSegment) {
-            const nowSec = new Date().getTime() / 1000;
-            const maxEnd = Math.min(dayEnd, nowSec);
-
-            // Обрезаем хвост по последнему heartbeat (5 минут)
-            if (currentSegment.end < maxEnd && currentSegment.end > dayEnd - 3600) {
-                currentSegment.end = Math.min(currentSegment.end + 300, maxEnd);
-            }
-            segments.push(currentSegment);
+        // 5. Закрываем последний сегмент (до "сейчас")
+        let endTime = Math.min(nowRelative, 86400);
+        if (endTime > segStart) {
+            pushSegment(segStart, endTime, segState);
         }
-        this._segmentsCache = segments;      // ← замените `return segments;` на это
-        this._segmentsCacheKey = key;
-        return segments;
+
+        // 6. Добавляем серый блок на всё оставшееся время до 24:00
+        if (endTime < 86400) {
+            pushSegment(endTime, 86400, '');
+        }
+
+        // 7. Чистим нулевые сегменты (на всякий случай)
+        const result = segments.filter(s => s.end > s.start);
+
+        this.activitySegments = result.map(seg => {
+            return {
+                ...seg, // копируем старые данные сегмента (id, start, end...)
+                color: this.getSegmentColor(seg), // сразу добавляем готовый цвет
+                title: this.getSegmentTitle(seg)  // сразу добавляем готовый текст
+            };
+        });
+
+        console.log(
+            `%c📦 Сегменты: ${result.length} (Логов: ${events.length}) за ${(performance.now() - t0).toFixed(2)} мс`,
+            'color: #e91e63; font-weight: bold;'
+        );
+
+        return result;
     },
 
     // Форматирует UTC-строку из БД в локальное время (HH:MM:SS)
@@ -301,4 +408,45 @@ export const ActivityState = () => ({
         const d = this._parseUTC(utcStr);
         return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     },
+
+    // Вспомогательный метод: какой статус был в конкретную 5-минутку?
+    _getStateForSlot(slotIndex, sortedLog, dayStart) {
+        const slotStart = slotIndex * 300;
+        let state = '';
+
+        for (const entry of sortedLog) {
+            const timeSec = this._parseUTC(entry.created_at).getTime() / 1000 - dayStart;
+
+            if (timeSec <= slotStart) {
+                state = entry.state || 'active_scheduled';
+            } else {
+                break; // События идут по порядку, дальше смысла нет
+            }
+        }
+        return state;
+    },
+    // Превращает состояние в CSS-класс для фона
+    getSegmentColor(seg) {
+        if (!seg.state) return 'bg-gray-200'; // "Нет данных" (пустая строка)
+        return this._getCssClass(seg.state);
+    },
+
+    // Формирует текст всплывающей подсказки (тултипа) при наведении
+    getSegmentTitle(seg) {
+        // Переводим секунды в формат ЧЧ:ММ
+        const fmt = (sec) => {
+            const s = Math.max(0, Math.min(86400, Math.round(sec)));
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+
+        // Считаем длительность в минутах
+        const durMin = Math.round((seg.end - seg.start) / 60);
+
+        // Получаем красивую подпись из _getStateLabel
+        const label = seg.state ? this._getStateLabel(seg.state) : '⚪ Нет данных';
+
+        return `Время: ${fmt(seg.start)} - ${fmt(seg.end)}\n${label}: ${durMin} мин`;
+    }
 });

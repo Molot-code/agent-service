@@ -41,14 +41,12 @@ document.addEventListener('alpine:init', () => {
         menuOpen: false,
 
         async loadData() {
-            await this.loadGlobal();
             await this.loadSettings();
-
-            // loadUsers теперь сам выберет нужного пользователя (из localStorage или первого)
             await this.loadUsers();
+
+            await this.loadGlobal();
             await this.loadLogDates();
 
-            // Загружаем данные для выбранного пользователя
             if (this.selectedUser) {
                 await this.loadUserData();
                 this.initActivity();
@@ -71,7 +69,6 @@ document.addEventListener('alpine:init', () => {
                 this.initActivity();
             }
         },
-
         switchServer() {
             window.history.back();
         },
