@@ -12,15 +12,12 @@ use windows::{
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Input::KeyboardAndMouse::SetFocus,
-            WindowsAndMessaging::{
-                FindWindowW,
-                *,
-            },
+            WindowsAndMessaging::{FindWindowW, *},
         },
     },
 };
 
-use crate::{log_error};
+use crate::log_error;
 
 const CLASS_NAME: PCWSTR = w!("AgentTrayPopup");
 const WINDOW_TITLE: PCWSTR = w!("Родительский контроль");
@@ -30,8 +27,8 @@ const COLOR_TEXT: u32 = 0x00202020;
 const COLOR_TEXT_GRAY: u32 = 0x00606060;
 const COLOR_BUTTON: u32 = 0x00E6E6E6;
 
-const WINDOW_W: i32 = 300;
-const WINDOW_H: i32 = 170;
+const WINDOW_W: i32 = 320;
+const WINDOW_H: i32 = 240;
 
 const PAD: i32 = 16;
 
@@ -238,8 +235,44 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 
             let pitch_family = 0u32;
 
+            // ===== Шрифты =====
+
+            // Большой жирный — акцентный остаток
+            let font_big = CreateFontW(
+                28,
+                0,
+                0,
+                0,
+                FW_BOLD.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                pitch_family,
+                w!("Segoe UI"),
+            );
+            let font_big2 = CreateFontW(
+                24,
+                0,
+                0,
+                0,
+                FW_BOLD.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                pitch_family,
+                w!("Segoe UI"),
+            );
+            // Обычный — подписи (🆕 чуть больше: 16 → 18)
             let font_normal = CreateFontW(
-                16,
+                18,
                 0,
                 0,
                 0,
@@ -254,12 +287,30 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 pitch_family,
                 w!("Segoe UI"),
             );
+            // Жирный обычного размера — заголовок и кнопка (🆕 16 → 18)
             let font_bold = CreateFontW(
-                16,
+                18,
                 0,
                 0,
                 0,
                 FW_BOLD.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                pitch_family,
+                w!("Segoe UI"),
+            );
+            // Мелкий — « / Kч Lм» и «Осталось:» (🆕 13 → 14)
+            let font_small = CreateFontW(
+                14,
+                0,
+                0,
+                0,
+                FW_NORMAL.0 as i32,
                 0,
                 0,
                 0,
@@ -279,12 +330,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 SetTextColor(hdc, COLORREF(COLOR_TEXT));
                 draw_text(hdc, &format!("🛡️ ▶️ {}", data.username), 16, 16);
 
-                // Статус
                 SelectObject(hdc, font_normal.into());
-                SetTextColor(hdc, COLORREF(0x0008b9ea)); // жёлтый
+                SetTextColor(hdc, COLORREF(0x0008b9ea));
                 draw_text(hdc, "🔓 Разблокировано вручную", 16, 56);
 
-                // Таймер
                 if let Some(minutes) = data.time_to_event_minutes {
                     SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
                     let time_text = format!("⏰ Осталось {}", format_secs(minutes * 60));
@@ -314,28 +363,45 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     hdc,
                     &format!("🛡️ {} {}", status_emoji, data.username),
                     16,
-                    16,
+                    12,
                 );
 
-                // ===== Строка 2: экран — «использовано / лимит» =====
+                // ===== Экран =====
+                let limit_x = 30;
                 let screen_used = data
                     .screen_limit_sec
                     .saturating_sub(data.screen_remaining_sec);
                 let screen_color = color_for_percent(screen_used, data.screen_limit_sec);
+
+                // «Осталось:» — мелким серым
+                SelectObject(hdc, font_small.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
+                draw_text(hdc, "Осталось:", 16, 40);
+
+                // «Экранного времени» — обычным
                 SelectObject(hdc, font_normal.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT));
+                draw_text(hdc, "Экранного времени", 16, 58);
+
+                // Одна строка: «Nч Mм» (большим) + « / Kч Lм» (мелким)
+                SelectObject(hdc, font_big.into());
                 SetTextColor(hdc, screen_color);
-                draw_text(
+                let screen_remaining_text = format_secs(data.screen_remaining_sec);
+                draw_text(hdc, &screen_remaining_text, limit_x, 78);
+
+                let mut big_size = SIZE::default();
+                let _ = GetTextExtentPoint32W(
                     hdc,
-                    &format!(
-                        "📺 Экран: {} / {}",
-                        format_secs(screen_used),
-                        format_secs(data.screen_limit_sec),
-                    ),
-                    16,
-                    56,
+                    &to_wide_no_nul(&screen_remaining_text),
+                    &mut big_size,
                 );
 
-                // ===== Строка 3: интернет — цветом по остатку =====
+                SelectObject(hdc, font_small.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
+                let screen_limit_text = format!(" / {}", format_secs(data.screen_limit_sec));
+                draw_text(hdc, &screen_limit_text, limit_x + big_size.cx + 4, 78 + 11);
+
+                // ===== Интернет =====
                 let internet_used = data
                     .internet_limit_sec
                     .saturating_sub(data.internet_remaining_sec);
@@ -344,26 +410,42 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 } else {
                     color_for_percent(internet_used, data.internet_limit_sec)
                 };
-                SetTextColor(hdc, internet_color);
-                let internet_line = if data.internet_paused {
-                    format!(
-                        "🌐 Интернет: {} / {} ⏸",
-                        format_secs(internet_used),
-                        format_secs(data.internet_limit_sec),
-                    )
+
+                // Заголовок «Интернет»
+                SelectObject(hdc, font_normal.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT));
+                let internet_label = if data.internet_paused {
+                    "🌐 Интернет ⏸"
                 } else {
-                    format!(
-                        "🌐 Интернет: {} / {}",
-                        format_secs(internet_used),
-                        format_secs(data.internet_limit_sec),
-                    )
+                    "🌐 Интернет"
                 };
-                draw_text(hdc, &internet_line, 16, 88);
+                draw_text(hdc, internet_label, 16, 114);
 
-                // ===== Кнопка (без изменений) =====
-                // ...
+                // Цифры интернета (шрифт 24px)
+                SelectObject(hdc, font_big2.into());
+                SetTextColor(hdc, internet_color);
+                let internet_remaining_text = format_secs(data.internet_remaining_sec);
+                draw_text(hdc, &internet_remaining_text, limit_x, 134);
 
-                // Кнопка
+                let mut big_size_int = SIZE::default();
+                let _ = GetTextExtentPoint32W(
+                    hdc,
+                    &to_wide_no_nul(&internet_remaining_text),
+                    &mut big_size_int,
+                );
+
+                // Маленький текст « / Kч Lм» (выравниваем по базовой линии 24px шрифта)
+                SelectObject(hdc, font_small.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
+                let internet_limit_text = format!(" / {}", format_secs(data.internet_limit_sec));
+                draw_text(
+                    hdc,
+                    &internet_limit_text,
+                    limit_x + big_size_int.cx + 4,
+                    134 + 6, // 🆕 изменили с 14 на 11, так как шрифт 24, а не 28
+                );
+
+                // ===== Кнопка =====
                 let btn_brush = CreateSolidBrush(COLORREF(COLOR_BUTTON));
                 let mut btn_rect = RECT {
                     left: BTN_X,
@@ -387,12 +469,15 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     &mut btn_rect,
                     DT_SINGLELINE | DT_CENTER | DT_VCENTER,
                 );
-
-                let _ = DeleteObject(font_normal.into());
-                let _ = DeleteObject(font_bold.into());
-
-                let _ = EndPaint(hwnd, &ps);
             }
+
+            let _ = DeleteObject(font_big.into());
+            let _ = DeleteObject(font_big2.into());
+            let _ = DeleteObject(font_normal.into());
+            let _ = DeleteObject(font_bold.into());
+            let _ = DeleteObject(font_small.into());
+
+            let _ = EndPaint(hwnd, &ps);
             LRESULT(0)
         }
         WM_LBUTTONDOWN => {
@@ -454,6 +539,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 }
 
 // ===== Вспомогательные =====
+/// 🆕 Без завершающего \0 — для GetTextExtentPoint32W с явной длиной.
+fn to_wide_no_nul(s: &str) -> Vec<u16> {
+    s.encode_utf16().collect()
+}
 
 fn draw_text(hdc: HDC, text: &str, x: i32, y: i32) {
     unsafe {
@@ -494,5 +583,3 @@ fn color_for_percent(used: u32, limit: u32) -> COLORREF {
         COLORREF(0x004444ef) // красный (#ef4444 в BGR)
     }
 }
-
-

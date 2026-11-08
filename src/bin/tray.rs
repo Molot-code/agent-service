@@ -25,7 +25,15 @@ use tray_icon::{
 /// 200 мс — компромисс между отзывчивостью и CPU.
 const LOOP_TICK_MS: u64 = 200;
 
+/// 🆕 Как часто обновлять рантайм-настройки (lock_warning_sec) в фоне.
+const SETTINGS_REFRESH_SEC: u64 = 180;
+
 static LAST_STATUS: OnceLock<Mutex<Option<Status>>> = OnceLock::new();
+
+/// 🆕 Идентификатор события, для которого уже показывали авто-popup.
+/// Хранит строку вида "kind:event_at_minute" — чтобы не спамить
+/// при каждом обновлении статуса, но показать заново для нового события.
+static LAST_WARNED_EVENT: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 // ===== Status =====
 
@@ -44,7 +52,6 @@ struct Status {
 
 #[derive(Debug, Clone)]
 struct TimeToEvent {
-    #[allow(dead_code)]
     kind: String,
     minutes: u32,
     #[allow(dead_code)]
@@ -55,6 +62,11 @@ struct TrayEnv {
     api_base: String,
     token_file: String,
     update_interval: Duration,
+    /// 🆕 Кэш lock_warning_sec из /api/settings.
+    /// 0 = не показывать автоматически.
+    /// Заполняется в main() при старте и периодически обновляется
+    /// в фоновом потоке статуса.
+    lock_warning_sec: Arc<Mutex<u32>>,
 }
 
 impl TrayEnv {
@@ -66,7 +78,12 @@ impl TrayEnv {
                 .to_string_lossy()
                 .to_string(),
             update_interval: Duration::from_secs(cfg.tray.update_interval_sec.max(1)),
+            lock_warning_sec: Arc::new(Mutex::new(0)),
         }
+    }
+
+    fn get_lock_warning_sec(&self) -> u32 {
+        self.lock_warning_sec.lock().map(|g| *g).unwrap_or(0)
     }
 }
 
@@ -146,6 +163,34 @@ fn fetch_status(client: &reqwest::blocking::Client, api_base: &str, token: &str)
             .unwrap_or(0) as u32,
         time_to_event,
     })
+}
+
+/// 🆕 Загружает рантайм-настройки из /api/settings.
+/// Ответ — массив `[{ key, value, is_secret, ... }]`.
+/// Возвращает None при ошибке сети/авторизации или если поля нет.
+fn fetch_runtime_settings(
+    client: &reqwest::blocking::Client,
+    api_base: &str,
+    token: &str,
+) -> Option<u32> {
+    let res = client
+        .get(format!("{}/api/settings", api_base))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .ok()?;
+
+    if !res.status().is_success() {
+        return None;
+    }
+
+    let items: Vec<serde_json::Value> = res.json().ok()?;
+
+    items
+        .iter()
+        .find(|item| item.get("key").and_then(|k| k.as_str()) == Some("lock_warning_sec"))
+        .and_then(|item| item.get("value"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.parse::<u32>().ok())
 }
 
 // ===== Иконки =====
@@ -253,6 +298,75 @@ enum UserEvent {
     UpdateStatus(Status),
 }
 
+// ===== Авто-показ popup =====
+
+/// 🆕 Стабильный идентификатор события. Округляем время наступления до минуты,
+/// чтобы при дрожании `minutes` между опросами не считать событие «новым».
+fn event_id(tt: &TimeToEvent) -> String {
+    let now_sec = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let event_at_min = (now_sec + tt.minutes as u64 * 60) / 60;
+    format!("{}:{}", tt.kind, event_at_min)
+}
+
+/// 🆕 Проверяет, не пора ли автоматически показать popup, и показывает его.
+/// Возвращает true, если popup был показан в этот раз.
+fn maybe_show_warning_popup(
+    status: &Status,
+    client: &Arc<reqwest::blocking::Client>,
+    env: &TrayEnv,
+) -> bool {
+    let Some(tt) = &status.time_to_event else {
+        return false;
+    };
+
+    // 🆕 порог берём из кэша настроек (обновляется в фоне)
+    let warn_sec = env.get_lock_warning_sec();
+    if warn_sec == 0 {
+        return false;
+    }
+
+    // time_to_event.minutes — в минутах. Переводим в секунды для сравнения.
+    let remaining_sec = tt.minutes as u64 * 60;
+    if remaining_sec > warn_sec as u64 {
+        return false;
+    }
+
+    // Панель уже видна — не трогаем
+    if agent_windows::tray_ui::is_visible() {
+        return false;
+    }
+
+    let id = event_id(tt);
+    let warned = LAST_WARNED_EVENT.get_or_init(|| Mutex::new(None));
+    let already = {
+        let guard = match warned.lock() {
+            Ok(g) => g,
+            Err(_) => return false,
+        };
+        guard.as_deref() == Some(id.as_str())
+    };
+    if already {
+        return false;
+    }
+
+    log_info!(
+        "[auto-popup] событие '{}' через {} мин (порог {} сек) — показываю панель",
+        tt.kind,
+        tt.minutes,
+        warn_sec
+    );
+
+    show_popup(client, &env.api_base, &env.token_file);
+
+    if let Ok(mut guard) = warned.lock() {
+        *guard = Some(id);
+    }
+    true
+}
+
 // ===== show_popup =====
 
 fn show_popup(client: &Arc<reqwest::blocking::Client>, api_base: &str, token_file: &str) {
@@ -287,7 +401,7 @@ fn show_popup(client: &Arc<reqwest::blocking::Client>, api_base: &str, token_fil
         data.internet_paused
     );
 
-    // 🆕 owned, чтобы замыкание 'static
+    // owned, чтобы замыкание 'static
     let api_base = api_base.to_string();
     let token_file = token_file.to_string();
     let client_cb = client.clone();
@@ -364,7 +478,7 @@ fn main() {
         }
     };
 
-    // 4. 🆕 TrayEnv — из config
+    // 4. TrayEnv — из config
     let env = Arc::new(TrayEnv::from_config(&config));
 
     log_debug!("=== agent-tray стартовал ===");
@@ -385,13 +499,33 @@ fn main() {
     );
     log_debug!("[main] http client создан");
 
+    // 🆕 Первичная загрузка рантайм-настроек (один раз, синхронно).
+    //    Если API ещё не поднялся — останется 0, а фоновый поток
+    //    догрузит при следующем тике.
+    if let Some(token) = read_token(&env.token_file) {
+        match fetch_runtime_settings(&client, &env.api_base, &token) {
+            Some(v) => {
+                if let Ok(mut g) = env.lock_warning_sec.lock() {
+                    *g = v;
+                }
+                log_info!("[settings] lock_warning_sec = {}", v);
+            }
+            None => {
+                log_error!("[settings] не удалось загрузить lock_warning_sec при старте");
+            }
+        }
+    } else {
+        log_error!("[settings] токен не найден, lock_warning_sec останется 0");
+    }
+
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
     log_debug!("[main] event_loop создан");
 
     LAST_STATUS.set(Mutex::new(None)).ok();
-    log_debug!("[main] LAST_STATUS инициализирован");
+    LAST_WARNED_EVENT.set(Mutex::new(None)).ok();
+    log_debug!("[main] LAST_STATUS / LAST_WARNED_EVENT инициализированы");
 
     let tray_menu = Menu::new();
     let item_open = MenuItem::new("🌐 Открыть панель", true, None);
@@ -425,15 +559,35 @@ fn main() {
     let item_pause_id = item_pause.id().clone();
     let item_quit_id = item_quit.id().clone();
 
-    // Фоновый поток — читает статус раз в N сек
+    // Фоновый поток — читает статус раз в N сек, а настройки — раз в SETTINGS_REFRESH_SEC
     {
         let proxy = proxy.clone();
         let client = client.clone();
-        let env_bg = env.clone(); // 🆕
+        let env_bg = env.clone();
         std::thread::spawn(move || {
             log_debug!("[bg] поток статуса стартовал");
+            let mut tick: u64 = 0;
+            let settings_refresh_every =
+                (SETTINGS_REFRESH_SEC / env_bg.update_interval.as_secs().max(1)).max(1);
+
             loop {
                 if let Some(token) = read_token(&env_bg.token_file) {
+                    // 🆕 периодический refresh настроек
+                    if tick % settings_refresh_every == 0 {
+                        if let Some(v) = fetch_runtime_settings(&client, &env_bg.api_base, &token) {
+                            if let Ok(mut g) = env_bg.lock_warning_sec.lock() {
+                                if *g != v {
+                                    log_info!(
+                                        "[settings] lock_warning_sec обновлён: {} → {}",
+                                        *g,
+                                        v
+                                    );
+                                    *g = v;
+                                }
+                            }
+                        }
+                    }
+
                     if let Some(status) = fetch_status(&client, &env_bg.api_base, &token) {
                         let _ = proxy.send_event(UserEvent::UpdateStatus(status));
                     } else {
@@ -442,6 +596,7 @@ fn main() {
                 } else {
                     log_error!("[bg] токен не найден");
                 }
+                tick = tick.wrapping_add(1);
                 std::thread::sleep(env_bg.update_interval);
             }
         });
@@ -449,7 +604,7 @@ fn main() {
 
     let tray_icon_loop = tray_icon.clone();
     let client_loop = client.clone();
-    let env_loop = env.clone(); // 🆕
+    let env_loop = env.clone();
 
     log_debug!("[main] вхожу в event_loop");
 
@@ -515,11 +670,19 @@ fn main() {
 
         // Обновление статуса
         if let Event::UserEvent(UserEvent::UpdateStatus(status)) = event {
+            // 🆕 Сначала обновляем LAST_STATUS — show_popup читает его.
+            if let Some(m) = LAST_STATUS.get() {
+                if let Ok(mut guard) = m.lock() {
+                    *guard = Some(status.clone());
+                }
+            }
+
             let tooltip = build_tooltip(&status);
 
             if let Ok(tray) = tray_icon_loop.lock() {
                 let _ = tray.set_tooltip(Some(&tooltip));
             }
+
             if agent_windows::tray_ui::is_visible() {
                 let data = agent_windows::tray_ui::PopupData {
                     username: status.current_user.clone(),
@@ -539,11 +702,8 @@ fn main() {
                 agent_windows::tray_ui::update_data(data);
             }
 
-            if let Some(m) = LAST_STATUS.get() {
-                if let Ok(mut guard) = m.lock() {
-                    *guard = Some(status);
-                }
-            }
+            // 🆕 Авто-показ popup, если событие близко и мы ещё не показывали
+            maybe_show_warning_popup(&status, &client_loop, &env_loop);
         }
     });
 }
