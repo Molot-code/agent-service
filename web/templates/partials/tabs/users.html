@@ -296,14 +296,13 @@
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">Лимит экрана (мин)</label>
                         <input type="number" x-model.number="today.limit_min" min="0" max="1440"
-                            @change="clampInternetLimit(); saveToday()"
+                            @change="onTodayScreenLimitChanged()"
                             class="w-full p-2 border rounded">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">Лимит интернета (мин)</label>
                         <input type="number" x-model.number="today.internet_limit_min" min="0"
-                            :max="today.limit_min"
-                            @change="clampInternetLimit(); saveToday()"
+                            @change="onTodayInternetLimitChanged()"
                             class="w-full p-2 border rounded">
                     </div>
                 </div>
@@ -359,14 +358,13 @@
                             <div>
                                 <label class="text-gray-600">Экран (мин):</label>
                                 <input type="number" x-model.number="dailySchedule.limit_min" min="0" max="1440"
-                                    @change="clampDailyInternetLimit(); applyDailyToAll(); saveWeekSchedule()"
+                                    @change="onDailyScreenLimitChanged()"
                                     class="w-full p-1 border rounded">
                             </div>
                             <div>
                                 <label class="text-gray-600">Интернет (мин):</label>
                                 <input type="number" x-model.number="dailySchedule.internet_limit_min" min="0"
-                                    :max="dailySchedule.limit_min"
-                                    @change="clampDailyInternetLimit(); applyDailyToAll(); saveWeekSchedule()"
+                                    @change="onDailyInternetLimitChanged()"
                                     class="w-full p-1 border rounded">
                             </div>
                         </div>
@@ -393,14 +391,13 @@
                                 <div>
                                     <label class="text-gray-600">Экран (мин):</label>
                                     <input type="number" x-model.number="day.limit_min" min="0" max="1440"
-                                        @change="clampInternetLimitForDay(idx); saveWeekSchedule()"
+                                        @change="onDayScreenLimitChanged(idx)"
                                         class="w-full p-1 border rounded">
                                 </div>
                                 <div>
                                     <label class="text-gray-600">Интернет (мин):</label>
                                     <input type="number" x-model.number="day.internet_limit_min" min="0"
-                                        :max="day.limit_min"
-                                        @change="clampInternetLimitForDay(idx); saveWeekSchedule()"
+                                        @change="onDayInternetLimitChanged(idx)"
                                         class="w-full p-1 border rounded">
                                 </div>
                             </div>

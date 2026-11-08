@@ -30,7 +30,8 @@ pub fn apply(conn: &Connection) -> Result<()> {
         INSERT OR IGNORE INTO settings
             (key, value, category, value_type, label, description, sort_order, is_secret)
         VALUES
-            ('lock_message',    '🔒 Компьютер заблокирован', 'notifications', 'multiline', 'Сообщение на экране блокировки', '', 10, 0),
+            ('lock_message',    '🔒 Экран ЗАБЛОКИРОВАН Родительским контролем\n\
+     Разблокируется через {}', 'notifications', 'multiline', 'Сообщение на экране блокировки', '', 10, 0),
             ('lock_delay_sec',  '5',   'timing',    'int',      'Задержка блокировки (сек)', 'Сколько секунд показывать окно перед блокировкой', 10, 0),
             ('admin_pin',       '',    'security',  'password', 'PIN-код родителя', '', 10, 1),
             ('device_name',     '',    'general',   'string',   'Имя устройства', 'Как это устройство видят другие в сети', 10, 0),

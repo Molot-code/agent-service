@@ -56,6 +56,7 @@ export const UsersState = () => ({
                 screen_time: todayData.current_screen_time || 0,
                 internet_time: todayData.current_internet_time || 0
             };
+            this._prevTodayLimitMin = this.today.limit_min;
 
             // 2. Расписание
             if (schedData.schedule && Array.isArray(schedData.schedule)) {
@@ -69,6 +70,9 @@ export const UsersState = () => ({
                 }));
                 this.sameSchedule = this.checkSameSchedule();
                 this.syncDailyFromWeek();
+                this._prevDailyLimitMin = this.dailySchedule.limit_min;
+                this._prevDayLimitMin = {};
+                this.weekDays.forEach((d, i) => { this._prevDayLimitMin[i] = d.limit_min; });
             }
         } catch (e) {
             console.error('Ошибка загрузки данных пользователя:', e);

@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     db::AppDb,
-    log_debug, log_info,
+    log_info,
     types::{AdminCommand, ControlMode, DaySchedule, ManualAction, TimeToEvent, TodayLimit},
     users::get_active_user_sid,
 };

@@ -2,6 +2,9 @@ import { apiGet, apiPost } from './api.js';
 
 export const ScheduleState = () => ({
     sameSchedule: true,
+    _prevTodayLimitMin: null,
+    _prevDailyLimitMin: null,
+    _prevDayLimitMin: {},
 
     checkSameSchedule() {
         if (!this.weekDays || this.weekDays.length < 7) return false;
@@ -42,27 +45,59 @@ export const ScheduleState = () => ({
         }
     },
 
-    clampInternetLimit() {
-        if (this.today.internet_limit_min > this.today.limit_min) {
+    onTodayScreenLimitChanged() {
+        if (this._prevTodayLimitMin !== null &&
+            this.today.internet_limit_min === this._prevTodayLimitMin &&
+            this._prevTodayLimitMin !== this.today.limit_min) {
             this.today.internet_limit_min = this.today.limit_min;
         }
+        this._prevTodayLimitMin = this.today.limit_min;
         if (this.today.internet_limit_min < 0) this.today.internet_limit_min = 0;
+        this.saveToday();
     },
 
-    clampInternetLimitForDay(idx) {
-        const day = this.weekDays[idx];
-        if (!day) return;
-        if (day.internet_limit_min > day.limit_min) {
-            day.internet_limit_min = day.limit_min;
-        }
-        if (day.internet_limit_min < 0) day.internet_limit_min = 0;
+    onTodayInternetLimitChanged() {
+        if (this.today.internet_limit_min < 0) this.today.internet_limit_min = 0;
+        this.saveToday();
     },
 
-    clampDailyInternetLimit() {
-        if (this.dailySchedule.internet_limit_min > this.dailySchedule.limit_min) {
+    onDailyScreenLimitChanged() {
+        if (this._prevDailyLimitMin !== null &&
+            this.dailySchedule.internet_limit_min === this._prevDailyLimitMin &&
+            this._prevDailyLimitMin !== this.dailySchedule.limit_min) {
             this.dailySchedule.internet_limit_min = this.dailySchedule.limit_min;
         }
+        this._prevDailyLimitMin = this.dailySchedule.limit_min;
         if (this.dailySchedule.internet_limit_min < 0) this.dailySchedule.internet_limit_min = 0;
+        this.applyDailyToAll();
+        this.saveWeekSchedule();
+    },
+
+    onDailyInternetLimitChanged() {
+        if (this.dailySchedule.internet_limit_min < 0) this.dailySchedule.internet_limit_min = 0;
+        this.applyDailyToAll();
+        this.saveWeekSchedule();
+    },
+
+    onDayScreenLimitChanged(idx) {
+        const day = this.weekDays[idx];
+        if (!day) return;
+        const prev = this._prevDayLimitMin[idx];
+        if (prev !== undefined &&
+            day.internet_limit_min === prev &&
+            prev !== day.limit_min) {
+            day.internet_limit_min = day.limit_min;
+        }
+        this._prevDayLimitMin[idx] = day.limit_min;
+        if (day.internet_limit_min < 0) day.internet_limit_min = 0;
+        this.saveWeekSchedule();
+    },
+
+    onDayInternetLimitChanged(idx) {
+        const day = this.weekDays[idx];
+        if (!day) return;
+        if (day.internet_limit_min < 0) day.internet_limit_min = 0;
+        this.saveWeekSchedule();
     },
 
     async saveWeekSchedule() {
