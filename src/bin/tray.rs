@@ -416,10 +416,27 @@ fn show_popup(client: &Arc<reqwest::blocking::Client>, api_base: &str, token_fil
                 } else {
                     format!("{}/api/internet/resume", api_base)
                 };
-                let _ = client_cb
+                match client_cb
                     .post(url)
                     .header("Authorization", format!("Bearer {}", token))
-                    .send();
+                    .send()
+                {
+                    Ok(resp) if resp.status().is_success() => {
+                        log_info!("[cb] pause toggle OK ({})", resp.status());
+                    }
+                    Ok(resp) => {
+                        log_error!(
+                            "[cb] pause toggle failed: HTTP {} (body: {:?})",
+                            resp.status(),
+                            resp.text().unwrap_or_default()
+                        );
+                    }
+                    Err(e) => {
+                        log_error!("[cb] pause toggle error: {:?}", e);
+                    }
+                }
+            } else {
+                log_error!("[cb] pause toggle: токен не найден ({})", token_file);
             }
         },
         || {

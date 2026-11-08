@@ -512,38 +512,6 @@ async fn process_screen_time_procedure(db: &Arc<AppDb>, sid: &str) {
     if let Err(e) = db.add_internet_time(sid, 60) {
         log_error!("Ошибка записи интернет-времени: {}", e);
     }
-
-    let (today_time, _) = match db.get_today_usage(sid) {
-        Ok(val) => val,
-        Err(e) => {
-            log_error!("Ошибка чтения времени: {}", e);
-            return;
-        }
-    };
-
-    // 2. Эффективный лимит с extra_time
-    let effective_limit_sec = today_limit.limit_sec + today_limit.extra_time_min * 60;
-
-    // 3. Warning
-    let warning_mins: u32 = db
-        .get_setting("warning_minutes")
-        .ok()
-        .flatten()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0);
-
-    if warning_mins > 0 && effective_limit_sec > 0 {
-        let remaining_sec = (effective_limit_sec as u32).saturating_sub(today_time);
-        let remaining_min = remaining_sec / 60;
-        if remaining_min <= warning_mins && remaining_min > 0 {
-            log_info!(
-                "⚠️ Предупреждение: осталось {} мин до лимита",
-                remaining_min
-            );
-        }
-    }
-
-    // 🆕 БЛОКИРОВКА УБРАНА — этим занимается apply_lock_state
 }
 
 async fn enforce_lock_procedure(db: &Arc<AppDb>, sid: &str, reason: &str) -> bool {
@@ -626,12 +594,8 @@ async fn apply_lock_state(
     sid: &str,
     policy: &PolicyCheckResult,
 ) -> Result<bool, ()> {
-    log_debug!("apply_lock_state");
-
     let is_locked = db.get_state("lock_status").map_err(|_| ())?.as_deref() == Some("true");
     let want_lock = agent_windows::policy::should_lock(policy);
-
-    log_debug!("is_locked, wantlocked: {}, {}", is_locked, want_lock);
 
     // ===== Блокировка экрана =====
     let screen_locked = if want_lock && !is_locked {
@@ -649,8 +613,14 @@ async fn apply_lock_state(
     // ===== Блокировка интернета по лимиту =====
     let is_internet_paused = db.is_internet_paused(sid).unwrap_or(false);
     let source = db.get_internet_paused_source(sid).unwrap_or_default();
+    let block_internet_on_screen = db
+        .get_setting("lock_internet_on_screen_lock")
+        .ok()
+        .flatten()
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false);
 
-    if policy.internet_exceeded && !is_internet_paused {
+    if !screen_locked && policy.internet_exceeded && !is_internet_paused {
         log_info!(
             "🌐 [Lock] Превышен лимит интернета ({}/{} сек) — блокирую",
             policy.internet_time_sec,
@@ -683,12 +653,6 @@ async fn apply_lock_state(
     }
 
     // ===== 🆕 Блокировка интернета при блокировке экрана =====
-    let block_internet_on_screen = db
-        .get_setting("lock_internet_on_screen_lock")
-        .ok()
-        .flatten()
-        .map(|v| v == "1" || v == "true")
-        .unwrap_or(false);
 
     // Перечитываем состояние: первый блок мог его изменить
     let is_internet_paused = db.is_internet_paused(sid).unwrap_or(false);

@@ -326,21 +326,34 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 
             if data.mode == "manual_unlock" {
                 // ===== Ручная разблокировка =====
+
+                // Заголовок с именем (жирный, 18px)
                 SelectObject(hdc, font_bold.into());
                 SetTextColor(hdc, COLORREF(COLOR_TEXT));
-                draw_text(hdc, &format!("🛡️ ▶️ {}", data.username), 16, 16);
+                draw_text(hdc, &format!("🛡️ ▶️ {}", data.username), 16, 12);
 
-                SelectObject(hdc, font_normal.into());
-                SetTextColor(hdc, COLORREF(0x0008b9ea));
-                draw_text(hdc, "🔓 Разблокировано вручную", 16, 56);
+                // Подпись статуса (мелкая, серая)
+                SelectObject(hdc, font_small.into());
+                SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
+                draw_text(hdc, "Разблокировано вручную", 16, 44);
 
+                // Время
                 if let Some(minutes) = data.time_to_event_minutes {
-                    SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
-                    let time_text = format!("⏰ Осталось {}", format_secs(minutes * 60));
-                    draw_text(hdc, &time_text, 16, 88);
+                    // Подпись «Осталось»
+                    SelectObject(hdc, font_normal.into());
+                    SetTextColor(hdc, COLORREF(COLOR_TEXT));
+                    draw_text(hdc, "Осталось:", 16, 78);
+
+                    // Большие цифры (тот же шрифт, что и на главном экране)
+                    SelectObject(hdc, font_big.into());
+                    SetTextColor(hdc, COLORREF(0x0008b9ea)); // Жёлтый цвет (как было)
+                    let time_text = format_secs(minutes * 60);
+                    draw_text(hdc, &time_text, 16, 98);
                 } else {
+                    // Если времени нет — просто пишем крупным текстом
+                    SelectObject(hdc, font_normal.into());
                     SetTextColor(hdc, COLORREF(COLOR_TEXT_GRAY));
-                    draw_text(hdc, "♾️ Без ограничения по времени", 16, 88);
+                    draw_text(hdc, "♾️ Без ограничения", 16, 78);
                 }
             } else {
                 // ===== Строка 1: пользователь + эмодзи статуса =====

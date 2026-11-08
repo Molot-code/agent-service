@@ -25,14 +25,14 @@ windows-service = "0.8.1"
 axum = { version = "0.8.9", features = ["tokio"] }
 chrono = "0.4.45"
 rusqlite = { version = "0.41.1", features = ["bundled"] }
-uuid = { version = "1.29.0", features = ["v4"] }
+uuid = { version = "1.29.1", features = ["v4"] }
 whoami = "2.1.3"
 tower-http = { version = "0.7.1", features = ["fs"] }
-toml = "1.2.0"
+toml = "1.2.1"
 windows_users = "0.4.2"
 thiserror = "2.0.21"
 hostname = "0.4.2"
-minijinja = "3.0.5"
+minijinja = "3.1.0"
 tray-icon = "0.26.1"
 tao = "0.37.2"
 image = { version = "0.25.10", features = ["png"] }

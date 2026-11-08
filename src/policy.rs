@@ -86,7 +86,7 @@ pub fn check_screen_time_policy(
     let effective_internet_limit_sec =
         today_limits.internet_limit_sec + today_limits.extra_internet_time_min * 60;
 
-    let internet_exceeded = (internet_time as i32) > effective_internet_limit_sec.max(0);
+    let internet_exceeded = (internet_time as i32) >= effective_internet_limit_sec.max(0);
     let now_time = Local::now().format("%H:%M").to_string();
     let in_schedule = !(now_time < today_limits.start_time || now_time > today_limits.end_time);
     let is_exceeded = (screen_time as i32) >= effective_limit_sec.max(0);
