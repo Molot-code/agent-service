@@ -10,8 +10,16 @@ export const ExtraState = () => ({
 
     previewExtra(kind, value) {
         const v = Number(value) || 0;
-        if (kind === 'screen') this.activeToday.extra_min = v;
-        else this.activeToday.internet_extra_min = v;
+        if (kind === 'screen') {
+            // Если поправки были равны — интернет следует за экраном
+            if (this.extraSnapshot.screen === this.extraSnapshot.internet &&
+                this.extraSnapshot.screen !== v) {
+                this.activeToday.internet_extra_min = v;
+            }
+            this.activeToday.extra_min = v;
+        } else {
+            this.activeToday.internet_extra_min = v;
+        }
     },
 
     async commitExtra(kind) {
@@ -22,13 +30,30 @@ export const ExtraState = () => ({
         const user = this.users.find(u => u.username === this.global.current_user);
         if (!user) { this.showStatus('❌ Активный пользователь не найден'); return; }
 
+        // Запоминаем, были ли поправки равны ДО изменения
+        const wasEqual = this.extraSnapshot.screen === this.extraSnapshot.internet;
+
         const body = { sid: user.sid };
         if (kind === 'screen') body.screen_minutes = current;
         if (kind === 'internet') body.internet_minutes = current;
 
+        // Если поправки были равны ДО изменения — синхронизируем второй слайдер
+        if (wasEqual) {
+            if (kind === 'screen') {
+                this.activeToday.internet_extra_min = current;
+                body.internet_minutes = current;
+            } else if (kind === 'internet') {
+                this.activeToday.extra_min = current;
+                body.screen_minutes = current;
+            }
+        }
+
         try {
             await apiPost('/api/set_extra_time', body);
             this.extraSnapshot[kind] = current;
+            if (wasEqual) {
+                this.extraSnapshot[kind === 'screen' ? 'internet' : 'screen'] = current;
+            }
         } catch (e) {
             this.showStatus('❌ ' + e.message);
         }

@@ -311,7 +311,7 @@
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">Поправка экрана (мин)</label>
                         <input type="number" x-model.number="today.extra_min" class="w-full p-2 border rounded"
-                            @change="saveToday()"
+                            @change="onTodayExtraChanged()"
                             placeholder="0">
                         <p class="text-xs text-gray-400 mt-1">Отрицательное — урезать, положительное — добавить</p>
                     </div>
@@ -319,7 +319,7 @@
                         <label class="block text-xs text-gray-600 mb-1">Поправка интернета (мин)</label>
                         <input type="number" x-model.number="today.internet_extra_min"
                             class="w-full p-2 border rounded"
-                            @change="saveToday()"
+                            @change="onTodayInternetExtraChanged()"
                             placeholder="0">
                     </div>
                 </div>

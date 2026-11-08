@@ -5,6 +5,8 @@ export const ScheduleState = () => ({
     _prevTodayLimitMin: null,
     _prevDailyLimitMin: null,
     _prevDayLimitMin: {},
+    _prevTodayExtraMin: null,
+    _prevTodayInternetExtraMin: null,
 
     checkSameSchedule() {
         if (!this.weekDays || this.weekDays.length < 7) return false;
@@ -58,6 +60,24 @@ export const ScheduleState = () => ({
 
     onTodayInternetLimitChanged() {
         if (this.today.internet_limit_min < 0) this.today.internet_limit_min = 0;
+        this.saveToday();
+    },
+
+    onTodayExtraChanged() {
+        // Если поправки экрана и интернета были равны — интернет следует за экраном
+        if (this._prevTodayExtraMin !== null &&
+            this._prevTodayExtraMin === this._prevTodayInternetExtraMin &&
+            this._prevTodayExtraMin !== this.today.extra_min) {
+            this.today.internet_extra_min = this.today.extra_min;
+        }
+        this._prevTodayExtraMin = this.today.extra_min;
+        this._prevTodayInternetExtraMin = this.today.internet_extra_min;
+        this.saveToday();
+    },
+
+    onTodayInternetExtraChanged() {
+        this._prevTodayExtraMin = this.today.extra_min;
+        this._prevTodayInternetExtraMin = this.today.internet_extra_min;
         this.saveToday();
     },
 

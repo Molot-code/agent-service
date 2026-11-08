@@ -57,6 +57,8 @@ export const UsersState = () => ({
                 internet_time: todayData.current_internet_time || 0
             };
             this._prevTodayLimitMin = this.today.limit_min;
+            this._prevTodayExtraMin = this.today.extra_min;
+            this._prevTodayInternetExtraMin = this.today.internet_extra_min;
 
             // 2. Расписание
             if (schedData.schedule && Array.isArray(schedData.schedule)) {
