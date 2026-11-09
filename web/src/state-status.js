@@ -6,11 +6,17 @@ export const StatusState = () => ({
         is_locked: false,
         session_locked: false,
         mode: 'scheduled',
+        mode_reason: '',
         time_to_event: null,
         api_token: '',
         current_user: '',
     },
     refreshInterval: null,
+
+    // RDP-режим: активный пользователь не определён (SID есть, но имя неизвестно)
+    isRdpUnknown() {
+        return this.global.current_user === 'Неизвестно';
+    },
 
     async loadGlobal() {
         try {
@@ -24,11 +30,12 @@ export const StatusState = () => ({
             this.global.is_locked = data.is_locked || false;
             this.global.session_locked = data.session_locked || false;
             this.global.mode = data.mode || 'scheduled';
+            this.global.mode_reason = data.mode_reason || '';
             this.global.current_user = data.current_user || '';
             this.global.api_token = data.api_token || '';
             this.global.time_to_event = data.time_to_event ?? null;
 
-            if (data.current_user && data.current_user !== 'Нет активных сессий') {
+            if (data.current_user && data.current_user !== 'Нет активных сессий' && !this.isRdpUnknown()) {
                 await this.loadActiveToday(data.current_user);
             }
         } catch (e) {

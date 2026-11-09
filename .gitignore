@@ -1,8 +1,7 @@
 /target
 node_modules/
 web/static/
-.task/checksum/dev-watch
+/.task
 installer
-.task/checksum/
 PktMon.etl
 

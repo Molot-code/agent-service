@@ -146,7 +146,7 @@
                         <span>Сессия заблокирована (Win+L)</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <div class="w-4 h-4 bg-red-500 rounded"></div>
+                        <div class="w-4 h-4 bg-red-400 rounded"></div>
                         <span>Заблокирован</span>
                     </div>
                     <div class="flex items-center gap-1">
@@ -237,16 +237,23 @@
             {# ===== Блок «Сегодня» ===== #}
             <div class="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow border-l-4 border-l-green-500">
                 {# Возврат в режим расписания (если у пользователя активен ручной режим) #}
-                <div x-show="selectedUser && today.mode && today.mode.startsWith('manual')"
-                    class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <div x-show="selectedUser && today.mode && (today.mode.startsWith('manual') || today.mode === 'not_accepted')"
+                    :class="isSchedulePending() ? 'mb-4 p-3 bg-orange-50 border border-orange-200 rounded' : 'mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded'">
                     <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm text-yellow-700">
-                            🖐️ У пользователя активен <b>ручной режим</b>
-                            <span x-show="today.manual_until" class="text-yellow-600">(до <span x-text="today.manual_until"></span>)</span>.
+                        <span class="text-sm" :class="isSchedulePending() ? 'text-orange-700' : 'text-yellow-700'">
+                            <template x-if="isSchedulePending()">
+                                <span>⏳ <b>Требуется утвердить расписание</b>.</span>
+                            </template>
+                            <template x-if="!isSchedulePending()">
+                                <span>🖐️ У пользователя активен <b>ручной режим</b>
+                                    <span x-show="today.manual_until" class="text-yellow-600">(до <span x-text="today.manual_until"></span>)</span>.
+                                </span>
+                            </template>
                         </span>
                         <button @click="returnToScheduledForUser()"
-                            class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors">
-                            🤖 Вернуться в расписание
+                            class="shrink-0 px-3 py-1.5 rounded text-xs font-semibold transition-colors"
+                            :class="isSchedulePending() ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'"
+                            x-text="isSchedulePending() ? '✅ Активировать расписание' : '🤖 Вернуться в расписание'">
                         </button>
                     </div>
                 </div>

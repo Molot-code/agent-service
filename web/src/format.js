@@ -35,6 +35,8 @@ export const FormatHelpers = () => ({
     extraText(v) { return (v > 0 ? '+' : '') + v + ' мин'; },
 
     modeLabel() {
+        // Ручной режим с пометкой not_accepted — расписание не утверждено
+        if (this.isSchedulePending()) return '⏳ Требуется утвердить расписание';
         const map = {
             no_user: '💤 Нет сессий',
             control_disabled: '🚫 Контроль выключен',
@@ -43,6 +45,22 @@ export const FormatHelpers = () => ({
             manual_unlock: '🔓 Ручная разблокировка',
         };
         return map[this.global.mode] || '👤 Ручной';
+    },
+
+    // Ручной режим, поставленный системой (ежедневное подтверждение не получено)
+    isSchedulePending() {
+        return (this.global.mode === 'manual_lock' || this.global.mode === 'manual_unlock')
+            && this.global.mode_reason === 'not_accepted';
+    },
+
+    // Подпись кнопки возврата в расписание
+    returnToScheduleLabel() {
+        return this.isSchedulePending() ? 'Активировать расписание' : 'Вернуться в режим расписания';
+    },
+
+    // Подпись кнопки в списке пользователей
+    userReturnToScheduleLabel() {
+        return this.isSchedulePending() ? 'Активировать расписание' : 'Вернуться в расписание';
     },
 
     modeColor() {

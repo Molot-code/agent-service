@@ -42,6 +42,9 @@ pub struct StatusResponse {
     pub today_enabled: bool,
     pub current_user: String,
     pub mode: String,
+    /// Причина ручного режима: "" (ручной из UI) или "not_accepted"
+    /// (ежедневное подтверждение не получено).
+    pub mode_reason: String,
     pub time_to_event: Option<TimeToEventDto>,
     pub internet_paused: bool,
     pub internet_blocked: bool,
@@ -162,6 +165,15 @@ impl ControlMode {
                 ..
             } => "manual_unlock",
             ControlMode::Scheduled => "scheduled",
+        }
+    }
+
+    /// Причина ручного режима ("" — ручной из UI, "not_accepted" —
+    /// ежедневное подтверждение не получено). Для неручных режимов — "".
+    pub fn reason(&self) -> &str {
+        match self {
+            ControlMode::Manual { reason, .. } => reason.as_str(),
+            _ => "",
         }
     }
 }
