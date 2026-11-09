@@ -320,7 +320,7 @@ pub async fn set_param(
 
     if payload.key == "agent_mode" {
         let v = payload.value.to_lowercase();
-        if v != "local" && v != "hybrid" && v != "cloud" {
+        if v != "local" && v != "hybrid" {
             return Err(AppError::BadRequest(format!(
                 "Недопустимое значение agent_mode: '{}'",
                 payload.value

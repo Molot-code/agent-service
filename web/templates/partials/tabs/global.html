@@ -87,7 +87,7 @@
                                                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
                                                 transition bg-white">
                                         <template x-for="opt in enumOptions(s.key)" :key="opt.value">
-                                            <option :value="opt.value" x-text="opt.label"></option>
+                                            <option :value="opt.value" :disabled="opt.disabled" x-text="opt.label"></option>
                                         </template>
                                     </select>
                                 </template>

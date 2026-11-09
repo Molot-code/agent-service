@@ -48,8 +48,7 @@ export const SettingsState = () => ({
         const map = {
             agent_mode: [
                 { value: 'local', label: 'Local — только локально' },
-                { value: 'hybrid', label: 'Hybrid — локально + облако' },
-                { value: 'cloud', label: 'Cloud — только облако' },
+                { value: 'hybrid', label: 'Hybrid — локально + облако (в разработке)' },
             ],
             log_level: [
                 { value: 'debug', label: 'Debug — всё' },
