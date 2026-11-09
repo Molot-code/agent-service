@@ -123,6 +123,34 @@ export const StatusState = () => ({
             && this.global.internet_paused_source === 'manual';
     },
 
+    // Состояние интернета для карточки статуса
+    internetStatusLabel() {
+        if (this.isRdpUnknown() || !this.global.current_user
+            || this.global.current_user === 'Нет активных сессий') {
+            return '❓ Неизвестно';
+        }
+        if (this.global.is_locked) return '🔒 Заблокирован (лока)';
+        if (this.internetExceeded()) return '🚫 Исчерпан лимит';
+        if (this.global.internet_paused) {
+            const src = this.global.internet_paused_source;
+            if (src === 'admin') return '⏸ На паузе (админ)';
+            if (src === 'manual') return '⏸ На паузе (пользователь)';
+            return '⏸ На паузе';
+        }
+        return '🟢 Доступен';
+    },
+
+    internetStatusColor() {
+        if (this.isRdpUnknown() || !this.global.current_user
+            || this.global.current_user === 'Нет активных сессий') {
+            return 'text-gray-600';
+        }
+        if (this.global.is_locked) return 'text-red-600';
+        if (this.internetExceeded()) return 'text-red-600';
+        if (this.global.internet_paused) return 'text-yellow-600';
+        return 'text-green-600';
+    },
+
     async toggleInternetBlock() {
         const url = this.global.internet_paused
             ? '/api/internet/unblock'
