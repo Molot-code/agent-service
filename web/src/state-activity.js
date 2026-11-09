@@ -221,11 +221,11 @@ export const ActivityState = () => ({
     },
 
     _getCssClass(state) {
-        if (state === 'screen_locked') return 'bg-red-400';
-        if (state === 'session_locked') return 'bg-gray-400';
-        if (state === 'no_internet') return 'bg-lime-300';
-        if (state === 'active_scheduled') return 'bg-green-500';
-        if (state === 'active_manual') return 'bg-yellow-500';
+        if (state === 'screen_locked') return 'bg-red-300';
+        if (state === 'session_locked') return 'bg-gray-300';
+        if (state === 'no_internet') return 'bg-lime-200';
+        if (state === 'active_scheduled') return 'bg-green-300';
+        if (state === 'active_manual') return 'bg-yellow-300';
         return 'bg-gray-200';
     },
 

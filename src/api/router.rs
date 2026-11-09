@@ -48,6 +48,14 @@ pub fn build(static_dir: std::path::PathBuf, state: AppState) -> Router {
             "/api/users/return_to_scheduled",
             post(control::return_to_scheduled_for_user),
         )
+        .route(
+            "/api/internet/block",
+            post(control::admin_block_internet),
+        )
+        .route(
+            "/api/internet/unblock",
+            post(control::admin_unblock_internet),
+        )
         .route_layer(middleware::from_fn_with_state(state.clone(), require_admin));
 
     // PIN-эндпоинты доступны без авторизации (трей до логина).

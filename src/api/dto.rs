@@ -48,6 +48,8 @@ pub struct StatusResponse {
     pub time_to_event: Option<TimeToEventDto>,
     pub internet_paused: bool,
     pub internet_blocked: bool,
+    /// Источник паузы: "manual" (ребёнок), "admin", "limit", "screen_lock"; "" — не на паузе.
+    pub internet_paused_source: String,
     pub internet_time_sec: u32,
     pub internet_limit_sec: u32,
     pub device_name: String,

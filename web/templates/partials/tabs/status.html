@@ -112,7 +112,7 @@
             {# 🔵/🟢 Вернуться в режим расписания (первый, слева) #}
             <button x-show="global.mode === 'manual_lock' || global.mode === 'manual_unlock'"
                     @click="manualAction('auto', '')"
-                    :class="isSchedulePending() ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-500 hover:bg-blue-600'"
+                    :class="isSchedulePending() ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-400 hover:bg-blue-500'"
                     class="flex-[1.5] text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition transform active:scale-95 text-sm sm:text-base"
                     x-text="returnToScheduleLabel()"></button>
 
@@ -120,7 +120,7 @@
             <div x-show="!global.is_locked" class="relative flex-1">
                 <button type="button"
                         @click="showLockMenu = !showLockMenu"
-                        class="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
+                        class="w-full flex items-center justify-center gap-2 bg-red-400 hover:bg-red-500 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
                     <span>🔒</span>
                     <span>Заблокировать на...</span>
                     <svg class="w-4 h-4 transition-transform"
@@ -167,7 +167,7 @@
             <div x-show="global.is_locked" class="relative flex-1">
                 <button type="button"
                         @click="showLockMenu = !showLockMenu"
-                        class="w-full flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
+                        class="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition text-sm sm:text-base">
                     <span>🟡</span>
                     <span>Разблокировать на...</span>
                     <svg class="w-4 h-4 transition-transform"
@@ -216,6 +216,22 @@
         <div class="space-y-4 mb-6">
             {{ progress.progress_block("blue", "Экранное время", "screen_time", "extra_min", "screen") }}
             {{ progress.progress_block("green", "Интернет", "internet_time", "internet_extra_min", "internet") }}
+
+            {# 🌐 Заблокировать/Разблокировать интернет (видимо, когда нет лока экрана, лимит не исчерпан и нет RDP) #}
+            <div x-show="showInternetToggle()" class="space-y-2">
+                <button type="button"
+                        @click="toggleInternetBlock()"
+                        :class="global.internet_paused ? 'bg-green-300 hover:bg-green-400' : 'bg-yellow-400 hover:bg-yellow-500'"
+                        class="w-full flex items-center justify-center gap-2 text-white px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold shadow-lg transition transform active:scale-95 text-sm sm:text-base">
+                    <span x-text="global.internet_paused ? '🟢' : '🌐'"></span>
+                    <span x-text="global.internet_paused ? 'Разблокировать интернет' : 'Заблокировать интернет'"></span>
+                    <span x-show="internetPausedByUser()"
+                        class="text-xs font-normal opacity-80">(пауза от пользователя)</span>
+                </button>
+                <p class="text-xs text-gray-500 text-center">
+                    ⚠️ Блокировка интернета работает только при включённом брандмауэре Windows
+                </p>
+            </div>
         </div>
 
         {# Слайдеры поправки #}

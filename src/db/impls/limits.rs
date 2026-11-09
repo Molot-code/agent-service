@@ -270,19 +270,6 @@ impl AppDb {
 // ---------- internet pause ----------
 
 impl AppDb {
-    pub fn set_internet_paused(&self, sid: &str, paused: bool, source: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO daily_limits
-                (user_sid, date, internet_paused, internet_paused_source)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(user_sid, date) DO UPDATE SET
-                internet_paused = ?3, internet_paused_source = ?4",
-            params![sid, today(), paused as i32, source],
-        )?;
-        Ok(())
-    }
-
     pub fn get_internet_paused_source(&self, sid: &str) -> Result<String> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare_cached(

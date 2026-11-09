@@ -82,6 +82,7 @@ pub async fn get_status(State(state): State<AppState>) -> AppResult<Json<StatusR
             time_to_event: None,
             internet_paused: false,
             internet_blocked: false,
+            internet_paused_source: String::new(),
             internet_time_sec: 0,
             internet_limit_sec: 0,
             device_name,
@@ -136,6 +137,10 @@ pub async fn get_status(State(state): State<AppState>) -> AppResult<Json<StatusR
         time_to_event: Some(TimeToEventDto::from(policy.time_to_event.clone())),
         internet_paused,
         internet_blocked,
+        internet_paused_source: state
+            .db
+            .get_internet_paused_source(&active_sid)
+            .unwrap_or_default(),
         internet_time_sec,
         internet_limit_sec,
         device_name,

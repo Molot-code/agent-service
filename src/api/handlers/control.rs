@@ -227,6 +227,7 @@ pub async fn return_to_scheduled_for_user(
     }))
 }
 
+/// Пауза интернета (трей): source = "manual" — пауза, поставленная самим ребёнком.
 pub async fn pause_internet(State(state): State<AppState>) -> AppResult<Json<ApiResponse>> {
     let Some(sid) = get_active_user_sid() else {
         return Err(AppError::BadRequest("no active user".into()));
@@ -239,6 +240,7 @@ pub async fn pause_internet(State(state): State<AppState>) -> AppResult<Json<Api
     }))
 }
 
+/// Возобновление интернета (трей): снимает паузу, поставленную самим ребёнком.
 pub async fn resume_internet(State(state): State<AppState>) -> AppResult<Json<ApiResponse>> {
     let Some(sid) = get_active_user_sid() else {
         return Err(AppError::BadRequest("no active user".into()));
@@ -248,6 +250,32 @@ pub async fn resume_internet(State(state): State<AppState>) -> AppResult<Json<Ap
     Ok(Json(ApiResponse {
         success: true,
         message: "🌐 Интернет возобновлён".to_string(),
+    }))
+}
+
+/// Блокировка интернета администратором из веб-панели: source = "admin".
+pub async fn admin_block_internet(State(state): State<AppState>) -> AppResult<Json<ApiResponse>> {
+    let Some(sid) = get_active_user_sid() else {
+        return Err(AppError::BadRequest("no active user".into()));
+    };
+    set_internet_blocked(&state.db, &sid, true, "admin")?;
+    crate::activity::log_activity_now(&state.db, &sid, "internet_blocked", "admin");
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "🌐 Интернет заблокирован".to_string(),
+    }))
+}
+
+/// Разблокировка интернета администратором из веб-панели.
+pub async fn admin_unblock_internet(State(state): State<AppState>) -> AppResult<Json<ApiResponse>> {
+    let Some(sid) = get_active_user_sid() else {
+        return Err(AppError::BadRequest("no active user".into()));
+    };
+    set_internet_blocked(&state.db, &sid, false, "")?;
+    crate::activity::log_activity_now(&state.db, &sid, "internet_unblocked", "admin");
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "🌐 Интернет разблокирован".to_string(),
     }))
 }
 

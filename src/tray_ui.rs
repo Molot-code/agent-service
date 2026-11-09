@@ -394,7 +394,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 // «Экранного времени» — обычным
                 SelectObject(hdc, font_normal.into());
                 SetTextColor(hdc, COLORREF(COLOR_TEXT));
-                draw_text(hdc, "Экранного времени", 16, 58);
+                draw_text(hdc, "Экранное время", 16, 58);
 
                 // Одна строка: «Nч Mм» (большим) + « / Kч Lм» (мелким)
                 SelectObject(hdc, font_big.into());

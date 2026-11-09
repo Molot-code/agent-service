@@ -34,6 +34,9 @@ export const StatusState = () => ({
             this.global.current_user = data.current_user || '';
             this.global.api_token = data.api_token || '';
             this.global.time_to_event = data.time_to_event ?? null;
+            this.global.internet_paused = data.internet_paused || false;
+            this.global.internet_blocked = data.internet_blocked || false;
+            this.global.internet_paused_source = data.internet_paused_source || '';
 
             if (data.current_user && data.current_user !== 'Нет активных сессий' && !this.isRdpUnknown()) {
                 await this.loadActiveToday(data.current_user);
@@ -94,5 +97,43 @@ export const StatusState = () => ({
             return (this.activeToday.internet_limit_min + this.activeToday.internet_extra_min) * 60;
         }
         return 0;
+    },
+
+    // Интернет превышен по лимиту (время >= базовый лимит + поправка)
+    internetExceeded() {
+        const limit = this.effectiveLimitSec('internet');
+        return limit > 0 && this.activeToday.internet_time >= limit;
+    },
+
+    // Кнопка «Заблокировать/Разблокировать интернет» видима, когда:
+    // - нет блокировки экрана (интернет и так блокируется вместе с экраном),
+    // - лимит интернета не исчерпан (иначе блокирует служба, source = "limit"),
+    // - нет активной сессии (неизвестно, кого блокировать).
+    showInternetToggle() {
+        return !this.global.is_locked
+            && !this.isRdpUnknown()
+            && !!this.global.current_user
+            && this.global.current_user !== 'Нет активных сессий'
+            && !this.internetExceeded();
+    },
+
+    // Пауза, поставленная самим ребёнком из трея (source = "manual")
+    internetPausedByUser() {
+        return this.global.internet_paused
+            && this.global.internet_paused_source === 'manual';
+    },
+
+    async toggleInternetBlock() {
+        const url = this.global.internet_paused
+            ? '/api/internet/unblock'
+            : '/api/internet/block';
+        try {
+            const data = await apiPost(url, {});
+            this.showStatus(data.message || '✅ Команда принята');
+            await this.loadGlobal();
+        } catch (e) {
+            console.error('[toggleInternetBlock] ОШИБКА:', e);
+            this.showStatus('❌ ' + e.message);
+        }
     },
 });
