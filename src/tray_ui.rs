@@ -50,6 +50,8 @@ pub struct PopupData {
     pub mode: String, // "scheduled" | "manual_lock" | "manual_unlock" | "control_disabled" | "no_user"
     pub is_locked: bool,
     pub time_to_event_minutes: Option<u32>,
+    // 🆕 Источник паузы: "manual" (ребёнок), "admin", "limit", "screen_lock"; "" — не на паузе.
+    pub internet_paused_source: String,
 }
 
 struct PopupState {
@@ -459,29 +461,36 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 );
 
                 // ===== Кнопка =====
-                let btn_brush = CreateSolidBrush(COLORREF(COLOR_BUTTON));
-                let mut btn_rect = RECT {
-                    left: BTN_X,
-                    top: BTN_Y,
-                    right: BTN_X + BTN_W,
-                    bottom: BTN_Y + BTN_H,
-                };
-                FillRect(hdc, &btn_rect, btn_brush);
-                let _ = DeleteObject(btn_brush.into());
+                // Кнопка видима, только если пауза поставлена ребёнком (source = "manual").
+                // Если пауза от админа, лимита или блокировки экрана — кнопка не показывается.
+                let show_button = !data.internet_paused
+                    || data.internet_paused_source == "manual";
 
-                SelectObject(hdc, font_bold.into());
-                SetTextColor(hdc, COLORREF(COLOR_TEXT));
-                let btn_text = if data.internet_paused {
-                    "▶️  Продолжить интернет"
-                } else {
-                    "⏸  Пауза интернета"
-                };
-                DrawTextW(
-                    hdc,
-                    &mut to_wide(btn_text),
-                    &mut btn_rect,
-                    DT_SINGLELINE | DT_CENTER | DT_VCENTER,
-                );
+                if show_button {
+                    let btn_brush = CreateSolidBrush(COLORREF(COLOR_BUTTON));
+                    let mut btn_rect = RECT {
+                        left: BTN_X,
+                        top: BTN_Y,
+                        right: BTN_X + BTN_W,
+                        bottom: BTN_Y + BTN_H,
+                    };
+                    FillRect(hdc, &btn_rect, btn_brush);
+                    let _ = DeleteObject(btn_brush.into());
+
+                    SelectObject(hdc, font_bold.into());
+                    SetTextColor(hdc, COLORREF(COLOR_TEXT));
+                    let btn_text = if data.internet_paused {
+                        "▶️  Продолжить интернет"
+                    } else {
+                        "⏸  Пауза интернета"
+                    };
+                    DrawTextW(
+                        hdc,
+                        &mut to_wide(btn_text),
+                        &mut btn_rect,
+                        DT_SINGLELINE | DT_CENTER | DT_VCENTER,
+                    );
+                }
             }
 
             let _ = DeleteObject(font_big.into());
@@ -498,21 +507,27 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
 
             if x >= BTN_X && x <= BTN_X + BTN_W && y >= BTN_Y && y <= BTN_Y + BTN_H {
-                let current = STATE
+                let (current, source) = STATE
                     .get()
                     .and_then(|s| s.lock().ok())
-                    .map(|s| s.data.internet_paused)
-                    .unwrap_or(false);
+                    .map(|s| (s.data.internet_paused, s.data.internet_paused_source.clone()))
+                    .unwrap_or((false, String::new()));
 
-                if let Some(state) = STATE.get() {
-                    if let Ok(mut s) = state.lock() {
-                        if let Some(cb) = &s.on_toggle {
-                            cb(!current);
+                // Кнопка видима, только если пауза от ребёнка (source = "manual") или нет паузы.
+                // Если пауза от админа/лимита/лока — клик игнорируем.
+                let button_visible = !current || source == "manual";
+
+                if button_visible {
+                    if let Some(state) = STATE.get() {
+                        if let Ok(mut s) = state.lock() {
+                            if let Some(cb) = &s.on_toggle {
+                                cb(!current);
+                            }
+                            s.data.internet_paused = !current;
                         }
-                        s.data.internet_paused = !current;
                     }
+                    let _ = InvalidateRect(Some(hwnd), None, true);
                 }
-                let _ = InvalidateRect(Some(hwnd), None, true);
             }
             LRESULT(0)
         }

@@ -48,6 +48,8 @@ struct Status {
     internet_time_sec: u32,
     internet_limit_sec: u32,
     time_to_event: Option<TimeToEvent>,
+    /// 🆕 Источник паузы: "manual" (ребёнок), "admin", "limit", "screen_lock"; "" — не на паузе.
+    internet_paused_source: String,
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +164,11 @@ fn fetch_status(client: &reqwest::blocking::Client, api_base: &str, token: &str)
             .and_then(|v| v.as_u64())
             .unwrap_or(0) as u32,
         time_to_event,
+        internet_paused_source: json
+            .get("internet_paused_source")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
     })
 }
 
@@ -391,6 +398,7 @@ fn show_popup(client: &Arc<reqwest::blocking::Client>, api_base: &str, token_fil
         mode: status.mode.clone(),
         is_locked: status.is_locked,
         time_to_event_minutes: status.time_to_event.as_ref().map(|tt| tt.minutes),
+        internet_paused_source: status.internet_paused_source.clone(),
     };
 
     log_info!(
@@ -715,6 +723,7 @@ fn main() {
                     mode: status.mode.clone(),
                     is_locked: status.is_locked,
                     time_to_event_minutes: status.time_to_event.as_ref().map(|tt| tt.minutes),
+                    internet_paused_source: status.internet_paused_source.clone(),
                 };
                 agent_windows::tray_ui::update_data(data);
             }
