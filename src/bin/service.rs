@@ -103,6 +103,8 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
                     // 🆕 Только настоящий Win+L / unlock
                     R::SessionLock => Some(SessionEvent::Lock(sid)),
                     R::SessionUnlock => Some(SessionEvent::Unlock(sid)),
+                    R::SessionLogon => Some(SessionEvent::Unlock(sid)),
+                    R::SessionLogoff => Some(SessionEvent::Lock(sid)),
                     // 🆕 RDP disconnect/connect и console disconnect/connect — НЕ лок экрана.
                     //    Их обрабатывает WTS-reconcile в фоновом тике.
                     R::RemoteDisconnect | R::ConsoleDisconnect => {
@@ -505,7 +507,7 @@ async fn process_screen_time_procedure(db: &Arc<AppDb>, sid: &str) {
 
     // Не считаем, если лимит уже исчерпан (или 0 = ноль секунд — но это не «безлимит»)
     // Если у тебя -1 = безлимит, то:
-    if (internet_time as i32) >= effective_internet_limit {
+    if (internet_time as i32) > effective_internet_limit {
         return; // лимит уже превышен, не тикаем
     }
 

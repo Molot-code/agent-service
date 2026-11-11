@@ -107,10 +107,13 @@ export const StatusState = () => ({
 
     // Кнопка «Заблокировать/Разблокировать интернет» видима, когда:
     // - нет блокировки экрана (интернет и так блокируется вместе с экраном),
+    // - не ручной режим (manual_lock / manual_unlock) — интернет и так управляется,
     // - лимит интернета не исчерпан (иначе блокирует служба, source = "limit"),
     // - нет активной сессии (неизвестно, кого блокировать).
     showInternetToggle() {
         return !this.global.is_locked
+            && this.global.mode !== 'manual_lock'
+            && this.global.mode !== 'manual_unlock'
             && !this.isRdpUnknown()
             && !!this.global.current_user
             && this.global.current_user !== 'Нет активных сессий'
@@ -129,13 +132,14 @@ export const StatusState = () => ({
             || this.global.current_user === 'Нет активных сессий') {
             return '❓ Неизвестно';
         }
-        if (this.global.is_locked) return '🔒 Заблокирован (лока)';
-        if (this.internetExceeded()) return '🚫 Исчерпан лимит';
-        if (this.global.internet_paused) {
-            const src = this.global.internet_paused_source;
-            if (src === 'admin') return '⏸ На паузе (админ)';
-            if (src === 'manual') return '⏸ На паузе (пользователь)';
-            return '⏸ На паузе';
+        if (this.global.mode !== "manual_unlock") {
+            if (this.internetExceeded()) return '🚫 Исчерпан лимит';
+            if (this.global.internet_paused) {
+                const src = this.global.internet_paused_source;
+                if (src === 'admin') return '⏸ На паузе (админ)';
+                if (src === 'manual') return '⏸ На паузе (пользователь)';
+                return '⏸ На паузе';
+            }
         }
         return '🟢 Доступен';
     },
@@ -145,9 +149,10 @@ export const StatusState = () => ({
             || this.global.current_user === 'Нет активных сессий') {
             return 'text-gray-600';
         }
-        if (this.global.is_locked) return 'text-red-600';
-        if (this.internetExceeded()) return 'text-red-600';
-        if (this.global.internet_paused) return 'text-yellow-600';
+        if (this.global.mode !== "manual_unlock") {
+            if (this.internetExceeded()) return 'text-red-600';
+            if (this.global.internet_paused) return 'text-yellow-600';
+        }
         return 'text-green-600';
     },
 
