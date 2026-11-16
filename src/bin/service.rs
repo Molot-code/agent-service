@@ -314,8 +314,6 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
 
     // ФИКС: Перед выходом из функции ОБЯЗАТЕЛЬНО сообщаем Windows, что мы полностью остановились!
     // Для этого снова вызываем статус STOPPED.
-    // Чтобы status_handle был доступен, убедитесь, что при его создании (строка 21-22 вашего кода)
-    // переменная не была поглощена (не ушла внутрь замыкания).
     let _ = status_handle.set_service_status(ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Stopped, // МЫ ОСТАНОВИЛИСЬ ГРАЦИОЗНО
@@ -348,17 +346,8 @@ async fn handle_admin_command(db: &Arc<AppDb>, cmd: AdminCommand) {
         AdminCommand::ForceUnlock => {
             log_info!("🔓 [Admin] Принудительная разблокировка");
             let _ = do_unlock_procedure(db).await;
-
-            // Ручной режим = снять любую интернет-блокировку (limit/screen_lock/manual).
-            if let Some(sid) = get_active_user_sid() {
-                if let Err(e) = agent_windows::firewall::set_block_enabled(&sid, false) {
-                    log_error!("❌ [ForceUnlock] set_block_enabled(false): {}", e);
-                }
-                let changed = db.apply_internet_block(&sid, false, "").unwrap_or(false);
-                if changed {
-                    log_activity_now(db, &sid, "internet_unblocked", "manual_unlock");
-                }
-            }
+            // Интернет НЕ трогаем: снимается только в apply_lock_state (по лимиту)
+            // или явным API-вызовом (web handler manual_action).
         }
 
         AdminCommand::AutoMode => {

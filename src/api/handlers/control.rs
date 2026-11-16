@@ -67,6 +67,15 @@ pub async fn manual_action(
         .await
         .map_err(|e| AppError::Internal(format!("send cmd failed: {e}")))?;
 
+    // Ручной режим = снять любую интернет-блокировку (limit/screen_lock/manual).
+    // Служба ForceUnlock больше не трогает интернет — делаем это здесь явно.
+    if matches!(req.action, ManualActionKind::Unlock) {
+        if let Err(e) = set_internet_blocked(&state.db, &sid, false, "") {
+            log_error!("[manual_action] set_internet_blocked(false): {}", e);
+        }
+        crate::activity::log_activity_now(&state.db, &sid, "internet_unblocked", "manual_unlock");
+    }
+
     let event_type = match req.action {
         ManualActionKind::Lock => "manual_lock",
         ManualActionKind::Unlock => "manual_unlock",

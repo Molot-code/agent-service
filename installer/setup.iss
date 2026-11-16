@@ -1,6 +1,6 @@
 #define MyAppName "Parental Control"
-#define MyAppVersion "1.0"
-#define MyAppPublisher "Your Company"
+#define MyAppVersion "0.8"
+#define MyAppPublisher "Molot"
 #define MyAppExeName "ParentalControlSvc.exe"
 ; Точное системное имя из вашего файла config.toml ("ParentalControlSvc")
 #define MyServiceSystemName "ParentalControlSvc"

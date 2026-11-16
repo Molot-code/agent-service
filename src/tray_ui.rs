@@ -32,6 +32,15 @@ const WINDOW_H: i32 = 240;
 
 const PAD: i32 = 16;
 
+// 🆕 Кнопка закрытия
+const CLOSE_SIZE: i32 = 20;    // сделал чуть меньше (было 24)
+const CLOSE_MARGIN_X: i32 = 22; // отступ справа (было 8)
+const CLOSE_MARGIN_Y: i32 = 6;  // отступ сверху (было 8)
+
+// Вычисляем позицию
+const CLOSE_X: i32 = WINDOW_W - CLOSE_SIZE - CLOSE_MARGIN_X;
+const CLOSE_Y: i32 = CLOSE_MARGIN_Y;
+
 const BTN_X: i32 = PAD - 8;
 const BTN_W: i32 = WINDOW_W - PAD * 2;
 const BTN_H: i32 = 34;
@@ -324,6 +333,37 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 w!("Segoe UI"),
             );
 
+            // 🆕 Крестик закрытия — рисуем всегда
+            {
+                let close_brush = CreateSolidBrush(COLORREF(COLOR_BG));
+                let close_rect = RECT {
+                    left: CLOSE_X,
+                    top: CLOSE_Y,
+                    right: CLOSE_X + CLOSE_SIZE,
+                    bottom: CLOSE_Y + CLOSE_SIZE,
+                };
+                FillRect(hdc, &close_rect, close_brush);
+                let _ = DeleteObject(close_brush.into());
+
+                // Рисуем сам крестик двумя линиями
+                let pen = CreatePen(PS_SOLID, 2, COLORREF(COLOR_TEXT_GRAY));
+                let old_pen = SelectObject(hdc, pen.into());
+
+                let inset = 6;
+                let l = CLOSE_X + inset;
+                let t = CLOSE_Y + inset;
+                let r = CLOSE_X + CLOSE_SIZE - inset;
+                let b = CLOSE_Y + CLOSE_SIZE - inset;
+
+                let _ = MoveToEx(hdc, l, t, None);
+                let _ = LineTo(hdc, r, b);
+                let _ = MoveToEx(hdc, r, t, None);
+                let _ = LineTo(hdc, l, b);
+
+                SelectObject(hdc, old_pen);
+                let _ = DeleteObject(pen.into());
+            }
+
             SetBkMode(hdc, TRANSPARENT);
 
             if data.mode == "manual_unlock" {
@@ -506,6 +546,13 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             let x = (lparam.0 & 0xFFFF) as i16 as i32;
             let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
 
+                // 🆕 Клик по крестику
+            if x >= CLOSE_X && x <= CLOSE_X + CLOSE_SIZE
+                && y >= CLOSE_Y && y <= CLOSE_Y + CLOSE_SIZE
+            {
+                let _ = DestroyWindow(hwnd);
+                return LRESULT(0);
+            }
             if x >= BTN_X && x <= BTN_X + BTN_W && y >= BTN_Y && y <= BTN_Y + BTN_H {
                 let (current, source) = STATE
                     .get()
@@ -539,6 +586,22 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             LRESULT(0)
         }
 
+        WM_SETCURSOR => {
+            let mut pt = POINT::default();
+            let _ = GetCursorPos(&mut pt);
+            let _ = ScreenToClient(hwnd, &mut pt);
+
+            let over_close = pt.x >= CLOSE_X && pt.x <= CLOSE_X + CLOSE_SIZE
+                && pt.y >= CLOSE_Y && pt.y <= CLOSE_Y + CLOSE_SIZE;
+
+            let cursor = if over_close {
+                LoadCursorW(None, IDC_HAND).unwrap_or_default()
+            } else {
+                LoadCursorW(None, IDC_ARROW).unwrap_or_default()
+            };
+            let _ = SetCursor(Some(cursor));
+            LRESULT(1)
+        }
         WM_DESTROY => {
             if let Some(state) = STATE.get() {
                 if let Ok(s) = state.lock() {
@@ -554,12 +617,6 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             log_ui("WM_KILLFOCUS → закрываю окно");
             let _ = DestroyWindow(hwnd);
             LRESULT(0)
-        }
-        WM_SETCURSOR => {
-            if let Ok(cursor) = LoadCursorW(None, IDC_ARROW) {
-                let _ = SetCursor(Some(cursor));
-            }
-            LRESULT(1)
         }
         WM_NCHITTEST => LRESULT(HTCLIENT as isize),
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
