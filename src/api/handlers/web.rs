@@ -357,6 +357,25 @@ pub struct ActivityLogQuery {
     pub date: Option<String>,
 }
 
+/// Использование за конкретный день (из daily_usage).
+/// GET /api/daily_usage/{sid}?date=YYYY-MM-DD (date опционально, по умолчанию сегодня)
+pub async fn get_daily_usage(
+    State(state): State<AppState>,
+    AxumPath(sid): AxumPath<String>,
+    Query(q): Query<ActivityLogQuery>,
+) -> AppResult<Json<super::super::dto::DailyUsageResponse>> {
+    let date = q
+        .date
+        .unwrap_or_else(|| chrono::Local::now().format("%Y-%m-%d").to_string());
+    let (screen, internet) = state.db.get_usage_by_date(&sid, &date).unwrap_or((0, 0));
+    Ok(Json(super::super::dto::DailyUsageResponse {
+        sid,
+        date: date.clone(),
+        screen_time_sec: screen,
+        internet_time_sec: internet,
+    }))
+}
+
 pub async fn get_activity_log(
     State(state): State<AppState>,
     AxumPath(sid): AxumPath<String>,

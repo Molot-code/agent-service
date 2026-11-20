@@ -59,6 +59,8 @@
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-base sm:text-lg md:text-xl font-bold text-gray-800">
                         📈 Активность за <span x-text="activityDateHeader()"></span>
+                        <span class="font-semibold text-green-600"
+                            x-text="' ' + formatMinutes(dailyUsage.screen_time_sec)"></span>
                     </h2>
 
                     {# Кнопка-календарь с навигацией по дням #}

@@ -224,3 +224,12 @@ pub struct ActivityLogEntryDto {
     pub created_at: String,
     pub state: String, // 🆕 Добавили
 }
+
+/// Использование за конкретный день (из daily_usage).
+#[derive(Serialize)]
+pub struct DailyUsageResponse {
+    pub sid: String,
+    pub date: String,
+    pub screen_time_sec: u32,
+    pub internet_time_sec: u32,
+}

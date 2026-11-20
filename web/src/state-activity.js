@@ -11,6 +11,8 @@ export const ActivityState = () => ({
     activityLoading: false,
     showEvents: false,
     activitySegments: [], // 👈 ВОТ ЭТО НУЖНО ДОБАВИТЬ
+    // Использование за выбранную дату (из daily_usage)
+    dailyUsage: { screen_time_sec: 0, internet_time_sec: 0 },
     // 🆕 Зум графика активности: 1 = 100% (в ширину экрана), до 800%
     activityChartZoom: 1,
     // ===== Выбранная дата для графика (YYYY-MM-DD) =====
@@ -67,10 +69,24 @@ export const ActivityState = () => ({
             );
             this.activityLog = res.entries || [];
             this.buildActivitySegments();
+            this.loadDailyUsage();
         } catch (e) {
             console.error('[activity] loadActivityLog ERROR', e);
         } finally {
             this.activityLoading = false;
+        }
+    },
+
+    // Загрузка использования за выбранную дату (из daily_usage)
+    async loadDailyUsage() {
+        if (!this.selectedUser) return;
+        try {
+            const res = await apiGet(
+                `/api/daily_usage/${this.selectedUser}?date=${this.activityDate}`
+            );
+            this.dailyUsage = res;
+        } catch (e) {
+            console.error('[activity] loadDailyUsage ERROR', e);
         }
     },
 
@@ -85,6 +101,7 @@ export const ActivityState = () => ({
     selectActivityDate(date) {
         this.activityDate = date;
         this.loadActivityLog();
+        this.loadDailyUsage();
     },
 
     // 🆕 Обертка, чтобы Alpine видел эту функцию
