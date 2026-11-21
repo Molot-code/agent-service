@@ -6,7 +6,7 @@ use axum::{
 use tower_http::services::ServeDir;
 
 use super::{
-    auth::{require_admin, require_auth},
+    auth::{no_cache, require_admin, require_auth},
     handlers::{control, pin, system, web},
     AppState,
 };
@@ -33,7 +33,8 @@ pub fn build(static_dir: std::path::PathBuf, state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth))
         .route("/api/internet/pause", post(control::pause_internet))
         .route("/api/internet/resume", post(control::resume_internet))
-        .route("/api/defaults", get(system::get_defaults));
+        .route("/api/defaults", get(system::get_defaults))
+        .layer(middleware::from_fn(no_cache));
 
     // Группа, требующая Admin (api_token или admin_pin).
     let admin_api = Router::new()
@@ -57,13 +58,15 @@ pub fn build(static_dir: std::path::PathBuf, state: AppState) -> Router {
             "/api/internet/unblock",
             post(control::admin_unblock_internet),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), require_admin));
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_admin))
+        .layer(middleware::from_fn(no_cache));
 
     // PIN-эндпоинты доступны без авторизации (трей до логина).
     let pin_api = Router::new()
         .route("/api/check_pin", post(pin::check_pin))
         .route("/api/set_pin", post(pin::set_admin_pin))
-        .route("/api/is_pin_set", get(pin::is_pin_set));
+        .route("/api/is_pin_set", get(pin::is_pin_set))
+        .layer(middleware::from_fn(no_cache));
 
     Router::new()
         .route("/", get(web::index_page))

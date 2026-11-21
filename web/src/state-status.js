@@ -11,7 +11,6 @@ export const StatusState = () => ({
         api_token: '',
         current_user: '',
     },
-    refreshInterval: null,
 
     // RDP-режим: активный пользователь не определён (SID есть, но имя неизвестно)
     isRdpUnknown() {
@@ -41,8 +40,17 @@ export const StatusState = () => ({
             if (data.current_user && data.current_user !== 'Нет активных сессий' && !this.isRdpUnknown()) {
                 await this.loadActiveToday(data.current_user);
             }
+
+            // Успех: данные свежие. _now — реактивное "сейчас" для isStale().
+            this.lastUpdated = Date.now();
+            this.stale = false;
+            this._now = Date.now();
         } catch (e) {
             console.error('Ошибка загрузки статуса:', e);
+            // Ошибка: данные оставляем, но помечаем stale — плашка "данные устарели".
+            this.stale = true;
+            // Пробрасываем ошибку — refreshNow() должна знать, что запрос не прошёл.
+            throw e;
         }
     },
 
@@ -69,22 +77,6 @@ export const StatusState = () => ({
             }
         } catch (e) {
             console.error('Ошибка загрузки today активного:', e);
-        }
-    },
-
-    startAutoRefresh() {
-        this.stopAutoRefresh();
-        this.refreshInterval = setInterval(async () => {
-            if (this.authenticated) {
-                await this.loadGlobal();
-            }
-        }, 5000);
-    },
-
-    stopAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
         }
     },
 

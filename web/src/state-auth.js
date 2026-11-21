@@ -59,7 +59,6 @@ export const AuthState = () => ({
         this.authenticated = false;
         this.pin = '';
         localStorage.removeItem('agent_pin');
-        this.stopAutoRefresh();
     },
 
     async changePin() {

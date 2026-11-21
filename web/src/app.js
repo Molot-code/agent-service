@@ -42,6 +42,10 @@ document.addEventListener('alpine:init', () => {
         savingSchedule: false,
         menuOpen: false,
 
+        // Колбэк от мобильного клиента: ?pc_back=<url> — куда вернуться при «Сменить сервер».
+        // Клиент делает window.location.assign(`http://${ip}:${port}/?pc_back=${back}`).
+        pcBackUrl: new URLSearchParams(window.location.search).get('pc_back') || '',
+
         async loadData() {
             await this.loadSettings();
             await this.loadUsers();
@@ -54,7 +58,7 @@ document.addEventListener('alpine:init', () => {
                 this.initActivity();
             }
 
-            this.startAutoRefresh();
+            this.initResumeListeners(); // один раз: poll + триггеры просыпания WebView
         },
 
         showStatus(msg) {
@@ -72,7 +76,11 @@ document.addEventListener('alpine:init', () => {
             }
         },
         switchServer() {
-            window.history.back();
+            if (this.pcBackUrl) {
+                window.location.assign(this.pcBackUrl);
+            } else {
+                window.location.assign('http://tauri.localhost');
+            }
         },
 
         goToUsersTab() {

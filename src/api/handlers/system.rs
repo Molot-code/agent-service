@@ -1,14 +1,19 @@
-use axum::{extract::State, Json};
+use axum::{extract::State, http::{header, HeaderMap}, Json};
 
 use crate::error::AppResult;
 
 use super::super::{dto::{DayDefaults, DefaultsResponse, WeekDayInfo}, AppState};
 
-pub async fn health_check(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "ok",
-        "service": state.config.service.name,
-    }))
+pub async fn health_check(State(state): State<AppState>) -> (HeaderMap, Json<serde_json::Value>) {
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    (
+        headers,
+        Json(serde_json::json!({
+            "status": "ok",
+            "service": state.config.service.name,
+        })),
+    )
 }
 
 pub async fn get_defaults(State(state): State<AppState>) -> AppResult<Json<DefaultsResponse>> {

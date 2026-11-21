@@ -27,4 +27,24 @@
 {{ screen_login.pin_login() }}
 {{ screen_main.main() }}
 
+{# ===== Оверлей: сервер недоступен ===== #}
+<div x-show="serverUnavailable" x-cloak
+     class="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full text-center">
+        <div class="text-4xl mb-4">📡</div>
+        <h2 class="text-lg font-bold mb-2">Сервер недоступен</h2>
+        <p class="text-gray-600 text-sm mb-6">Не удалось подключиться к серверу. Проверьте сеть или смените сервер.</p>
+        <div class="flex flex-col gap-3">
+            <button @click="retryServer()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium">
+                🔄 Попробовать снова
+            </button>
+            <button x-show="isMobileView()" @click="switchServer()"
+                class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-medium">
+                🌐 Сменить сервер
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

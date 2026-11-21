@@ -1,6 +1,6 @@
 use axum::{
-    extract::State,
-    http::{HeaderMap, StatusCode},
+    extract::{Request, State},
+    http::{header, HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -38,6 +38,16 @@ pub async fn require_admin(
         return Err(StatusCode::UNAUTHORIZED);
     }
     Ok(next.run(req).await)
+}
+
+/// Запрещает кэширование ответов `/api/*` (WebView может вернуть stale-JSON из кэша).
+/// Применяется к вложенным роутерам tray_api / admin_api / pin_api через `.layer()`;
+/// статика (ServeDir) не затрагивается.
+pub async fn no_cache(req: Request, next: Next) -> Response {
+    let mut res = next.run(req).await;
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    res
 }
 
 pub fn check_auth_level(headers: &HeaderMap, state: &AppState) -> AuthLevel {
