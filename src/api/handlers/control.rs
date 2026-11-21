@@ -26,9 +26,6 @@ pub async fn manual_action(
     };
 
     if matches!(req.action, ManualActionKind::Auto) {
-        // Если включено ежедневное подтверждение — сбрасываем его, чтобы
-        // ensure_today_limit не вернул not_accepted при следующем чтении.
-        let _ = state.db.set_setting("daily_confirmation", "0");
         state.db.set_today_mode(&sid, "scheduled", "")?;
         if let Err(e) = do_sync_user_access(&state.db, &state.admin_cmd_tx, &sid).await {
             log_error!("[API manual_action] sync failed: {:?}", e);
