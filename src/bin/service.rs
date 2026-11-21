@@ -28,7 +28,6 @@ pub enum SessionEvent {
 use agent_windows::{
     activity::log_activity_now,
     api::start_api_server,
-    cloud_client::start_cloud_client,
     config::Config,
     db::AppDb,
     discovery::start_discovery_listener,
@@ -188,8 +187,6 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
     let cmd_tx_for_api = admin_cmd_tx.clone();
 
     let config_for_discovery = Arc::clone(&config);
-    let db_cloud = db.clone();
-    let cmd_tx_for_cloud = admin_cmd_tx.clone();
 
     let db_for_discovery = db.clone();
 
@@ -231,12 +228,6 @@ fn run_service(_arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::e
             tokio::spawn(start_discovery_listener(config_for_discovery, db_for_discovery.clone()));
         } else {
             log_info!("ℹ️ Локальный API отключён (режим Cloud)");
-        }
-
-        if current_mode.needs_cloud_client() {
-            tokio::spawn(start_cloud_client(db_cloud, cmd_tx_for_cloud));
-        } else {
-            log_info!("ℹ️ Облачный клиент отключён (режим Local)");
         }
 
         // 🆕 Запуск трея СРАЗУ (без ожидания API).

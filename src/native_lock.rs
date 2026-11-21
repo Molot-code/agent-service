@@ -204,12 +204,7 @@ pub fn lock_screen() -> Result<(), String> {
             *LOCK_HWND.lock().unwrap() = Some(hwnd.0 as isize);
 
             let modifiers = MOD_CONTROL | MOD_SHIFT | MOD_ALT;
-            let register_result =
-                RegisterHotKey(Some(hwnd), UNLOCK_HOTKEY_ID, modifiers, VK_U.0 as u32);
-
-            if register_result.is_ok() {
-                //                log_info!("✅ [native_lock] Хитрая комбинация разблокировки активирована: Ctrl+Shift+Alt+U");
-            }
+            let _ = RegisterHotKey(Some(hwnd), UNLOCK_HOTKEY_ID, modifiers, VK_U.0 as u32);
 
             let _ = BlockInput(true);
             IS_LOCKED.store(true, Ordering::SeqCst);

@@ -3,7 +3,6 @@ pub use types::*;
 
 pub mod activity;
 pub mod api;
-pub mod cloud_client;
 pub mod config;
 pub mod db;
 pub mod discovery;
