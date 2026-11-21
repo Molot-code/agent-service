@@ -1,7 +1,9 @@
 {% macro header() %}
 <div class="relative mb-6">
     <div class="flex justify-between items-center">
-        <h1 class="text-lg sm:text-xl md:text-2xl font-bold">🛡️ Родительский контроль</h1>
+        <h1 class="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-3">
+            <img src="/icons/parent_logo.avif" alt="" class="w-7 h-7 sm:w-8 sm:h-8"> Родительский контроль
+        </h1>
 
         <div class="hidden md:flex items-center gap-4">
             <button x-show="isMobileView()" @click="switchServer()"

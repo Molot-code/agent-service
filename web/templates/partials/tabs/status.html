@@ -215,6 +215,10 @@
 
         </div>
 
+        <p x-show="global.is_locked" class="text-xs text-gray-500 text-center -mt-4 mb-6">
+            ℹ️ При разблокировке система переходит в ручной режим, расписание и лимиты игнорируются, отсчет времени не идет.
+        </p>
+
         {# Прогресс-бары #}
         <div class="space-y-4 mb-6">
             {{ progress.progress_block("blue", "Экранное время", "screen_time", "extra_min", "screen") }}

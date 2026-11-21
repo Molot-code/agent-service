@@ -37,25 +37,39 @@ fn main() {
 
             log_debug!("🔒 [CLI] Инициируем блокировку (grace: {}с)...", delay_sec);
 
-            // 🆕 Читаем lock_message из БД, подставляем {} в расчётное время и передаём в native_lock
+            // Сообщение из настроек — первая строка.
+            // Вторая строка «Разблокируется через Nч Mмин» — только в режиме расписания.
             match AppDb::new(&config.paths.data_dir) {
                 Ok(db) => {
                     if let Ok(Some(msg)) = db.get_setting("lock_message") {
                         if !msg.is_empty() {
-                            // Вычисляем время до следующего события через policy
-                            // evaluate_access(None) сам берёт активного пользователя
-                            let time_str = if let Some(state) = evaluate_access(&db, None) {
-                                format_time_to_event(&state.policy.time_to_event)
+                            // evaluate_access(None) сам берёт активного пользователя.
+                            // Во втором режиме (Manual) время не показываем.
+                            let final_msg = if let Some(state) = evaluate_access(&db, None) {
+                                let mut out = msg.clone();
+                                if matches!(
+                                    state.policy.mode,
+                                    agent_windows::types::ControlMode::Scheduled
+                                ) {
+                                    if let agent_windows::types::TimeToEvent::UnlockIn {
+                                        minutes,
+                                        reason,
+                                    } = &state.policy.time_to_event
+                                    {
+                                        // «Разблокируется через…» — только до начала расписания,
+                                        // а не до снятия лимита.
+                                        if reason == "schedule" {
+                                            out.push_str(&format!(
+                                                "\nРазблокируется через {}",
+                                                format_minutes(*minutes)
+                                            ));
+                                        }
+                                    }
+                                }
+                                out
                             } else {
                                 log_debug!("[CLI] evaluate_access вернул None — нет активного пользователя");
-                                String::new()
-                            };
-
-                            // Подставляем {} в шаблон сообщения
-                            let final_msg = if time_str.is_empty() {
                                 msg
-                            } else {
-                                msg.replace("{}", &time_str)
                             };
 
                             log_debug!("[CLI] lock_message загружен из БД: {}", final_msg);
@@ -146,14 +160,6 @@ fn main() {
         _ => {
             log_warn!("Неизвестная команда: {}", args[1]);
         }
-    }
-}
-
-/// Форматирует TimeToEvent в человекочитаемый вид: "15ч 23мин" или "45мин"
-fn format_time_to_event(tte: &agent_windows::types::TimeToEvent) -> String {
-    match tte {
-        agent_windows::types::TimeToEvent::UnlockIn { minutes, .. } => format_minutes(*minutes),
-        agent_windows::types::TimeToEvent::LockIn { minutes, .. } => format_minutes(*minutes),
     }
 }
 
